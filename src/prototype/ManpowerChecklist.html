@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manpower Checklist – ULB Audit System</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --sidebar-bg: #1e2235;
+    --sidebar-hover: #2a3050;
+    --sidebar-active: #2f3655;
+    --sidebar-text: #a0a8c0;
+    --sidebar-width: 220px;
+    --bg: #f0f2f7;
+    --surface: #ffffff;
+    --border: #e2e6ef;
+    --text: #1a1f36;
+    --muted: #6b7280;
+    --subtle: #9ca3af;
+    --primary: #1e2235;
+    --accent: #3b82f6;
+    --success: #22c55e;
+    --danger: #ef4444;
+    --font: 'Inter', sans-serif;
+    --radius: 8px;
+  }
+
+  body { font-family: var(--font); background: var(--bg); color: var(--text); display: flex; min-height: 100vh; font-size: 14px; }
+
+  /* ── SIDEBAR ── */
+  .sidebar { width: var(--sidebar-width); background: var(--sidebar-bg); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 200; }
+  .sidebar-brand { padding: 20px 18px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .brand-icon { width: 34px; height: 34px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: #fff; flex-shrink: 0; }
+  .brand-name { font-size: 13px; font-weight: 600; color: #fff; line-height: 1.2; }
+  .brand-sub { font-size: 11px; color: var(--sidebar-text); }
+  .sidebar-nav { flex: 1; padding: 12px 0; overflow-y: auto; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 18px; color: var(--sidebar-text); font-size: 13px; cursor: pointer; transition: background .15s, color .15s; text-decoration: none; border-left: 3px solid transparent; }
+  .nav-item:hover { background: var(--sidebar-hover); color: #fff; }
+  .nav-item.active { background: var(--sidebar-active); color: #fff; font-weight: 500; border-left-color: var(--accent); }
+  .nav-icon { font-size: 14px; width: 18px; text-align: center; }
+  .sidebar-footer { padding: 14px 18px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: space-between; }
+  .user-info { display: flex; align-items: center; gap: 9px; }
+  .avatar { width: 30px; height: 30px; background: #4b6bcc; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff; }
+  .user-name { font-size: 12px; color: #fff; font-weight: 500; line-height: 1.2; }
+  .user-role { font-size: 11px; color: var(--sidebar-text); }
+  .logout-btn { font-size: 12px; color: var(--sidebar-text); cursor: pointer; background: none; border: none; font-family: var(--font); transition: color .15s; }
+  .logout-btn:hover { color: #fff; }
+
+  /* ── MAIN ── */
+  .main { margin-left: var(--sidebar-width); flex: 1; display: flex; flex-direction: column; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 28px; height: 52px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; position: sticky; top: 0; z-index: 100; }
+  .location-dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; }
+  .location-label { font-size: 13px; color: var(--text); font-weight: 500; }
+
+  .page { padding: 28px; flex: 1; }
+  .page-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 28px; }
+  .page-title { font-size: 22px; font-weight: 700; color: var(--text); }
+  .page-sub { font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+  .btn-primary { background: var(--primary); color: #fff; border: none; border-radius: var(--radius); padding: 9px 18px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: var(--font); transition: background .15s; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-primary:hover { background: #2f3655; }
+  .btn-outline { background: #fff; color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 16px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: var(--font); transition: border-color .15s; }
+  .btn-outline:hover { border-color: #9ca3af; }
+
+  /* ── SECTION HEADING ── */
+  .section-heading {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 32px 0 14px;
+  }
+  .section-heading:first-of-type { margin-top: 0; }
+  .section-num {
+    width: 26px; height: 26px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600;
+    flex-shrink: 0;
+  }
+  .section-title { font-size: 15px; font-weight: 600; color: var(--text); }
+  .section-line { flex: 1; height: 1px; background: var(--border); }
+
+  /* ── CARD ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; overflow: hidden; }
+  .card-header { padding: 12px 20px; border-bottom: 1px solid var(--border); background: #fafbfd; }
+  .card-title { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .card-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── FIELDS ── */
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .field input, .field select, .field textarea {
+    background: #fff; border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-family: var(--font); font-size: 13px;
+    padding: 8px 12px; outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59,130,246,.1);
+  }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .field input[readonly] { background: #f8f9fc; color: var(--muted); }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .row4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; }
+
+  /* ── RADIO ── */
+  .radio-group { display: flex; gap: 16px; align-items: center; padding: 2px 0; }
+  .radio-label { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); cursor: pointer; }
+  .radio-label input[type=radio] { accent-color: var(--primary); cursor: pointer; }
+
+  /* ── CONDITIONAL ── */
+  .cond-block { border-left: 3px solid var(--accent); padding-left: 16px; display: flex; flex-direction: column; gap: 12px; animation: fs .18s ease; margin-top: 2px; }
+  .cond-block.red { border-left-color: var(--danger); }
+  @keyframes fs { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── ALERTS ── */
+  .red-flag { background: #fff5f5; border: 1px solid #fecaca; border-radius: 6px; padding: 10px 14px; font-size: 12.5px; color: var(--danger); font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  .red-flag::before { content: '⚑'; }
+  .status-ok { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px 14px; font-size: 12.5px; color: #16a34a; font-weight: 500; display: flex; align-items: center; gap: 7px; }
+  .status-ok::before { content: '✓'; }
+
+  .divider { height: 1px; background: var(--border); margin: 2px 0; }
+
+  /* ── TABLE ── */
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th { background: #f8f9fc; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; color: var(--muted); padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  .data-table td { padding: 7px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table td input { background: transparent; border: 1px solid transparent; border-radius: 5px; color: var(--text); font-family: var(--font); font-size: 13px; width: 100%; padding: 4px 6px; outline: none; transition: border-color .15s; }
+  .data-table td input:focus { border-color: var(--border); background: #fff; }
+  .data-table tr.total-row { background: #f0fdf4; }
+  .total-row td { font-weight: 600; }
+
+  /* ── AUDIT TABLE ── */
+  .audit-head { display: grid; grid-template-columns: 1fr 140px 1fr; gap: 14px; padding: 10px 20px; background: #f8f9fc; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .audit-row { display: grid; grid-template-columns: 1fr 140px 1fr; gap: 14px; align-items: center; padding: 11px 20px; border-bottom: 1px solid var(--border); transition: background .1s; }
+  .audit-row:last-child { border-bottom: none; }
+  .audit-row:hover { background: #fafbfd; }
+  .audit-row.sub { background: #f5f8ff; }
+  .audit-row.sub:hover { background: #eef3ff; }
+  .audit-no { font-size: 11px; color: var(--subtle); font-weight: 500; margin-bottom: 2px; }
+  .audit-text { font-size: 13px; line-height: 1.5; }
+  .audit-select { background: #fff; border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-family: var(--font); font-size: 12px; padding: 6px 10px; width: 100%; outline: none; cursor: pointer; }
+  .audit-select:focus { border-color: var(--accent); }
+  .audit-remark input { width: 100%; background: #fff; border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-family: var(--font); font-size: 12px; padding: 6px 10px; outline: none; }
+  .audit-remark input:focus { border-color: var(--accent); }
+
+  /* ── DOCS ── */
+  .docs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .doc-item { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #fafbfd; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; transition: border-color .15s, background .15s; }
+  .doc-item:hover { border-color: #c7d2e8; }
+  .doc-item.checked { background: #f0fdf4; border-color: #bbf7d0; color: #16a34a; }
+  .doc-item input[type=checkbox] { accent-color: var(--primary); width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; }
+
+  /* ── ADD/DEL ROW ── */
+  .btn-add-row { background: #f0f6ff; color: var(--accent); border: 1px solid #bfdbfe; border-radius: 6px; padding: 5px 12px; font-size: 12px; font-weight: 500; cursor: pointer; font-family: var(--font); transition: background .15s; }
+  .btn-add-row:hover { background: #dbeafe; }
+  .btn-del-row { background: none; border: none; color: var(--subtle); font-size: 16px; cursor: pointer; line-height: 1; padding: 2px 4px; border-radius: 4px; transition: color .15s, background .15s; }
+  .btn-del-row:hover { color: var(--danger); background: #fee2e2; }
+  .data-table thead th { vertical-align: bottom; }
+  .data-table thead tr:first-child th { border-bottom: 1px solid var(--border); }
+
+  /* ── ACTIONS ── */
+  .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 28px; padding-bottom: 40px; }
+
+  @media (max-width: 700px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; }
+    .row2, .row3, .row4, .docs-grid { grid-template-columns: 1fr; }
+    .audit-row, .audit-head { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon">U</div>
+    <div>
+      <div class="brand-name">ULB Audit System</div>
+      <div class="brand-sub">BNM Chhattisgarh</div>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <a class="nav-item" href="#"><span class="nav-icon">⊞</span> Dashboard</a>
+    <a class="nav-item" href="#"><span class="nav-icon">📁</span> Files</a>
+    <a class="nav-item" href="#"><span class="nav-icon">❓</span> Queries</a>
+    <a class="nav-item" href="#"><span class="nav-icon">📋</span> Pre-Audit</a>
+    <a class="nav-item" href="#"><span class="nav-icon">✅</span> Post-Audit</a>
+    <a class="nav-item" href="#"><span class="nav-icon">👥</span> Resource Allocation</a>
+    <a class="nav-item" href="#"><span class="nav-icon">🔐</span> Access Control</a>
+    <a class="nav-item" href="#"><span class="nav-icon">💰</span> Payroll</a>
+    <a class="nav-item" href="#"><span class="nav-icon">🧾</span> Expense Approvals</a>
+    <a class="nav-item active" href="#"><span class="nav-icon">☑</span> Manpower Checklist</a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info">
+      <div class="avatar">PS</div>
+      <div>
+        <div class="user-name">Priya Sharma</div>
+        <div class="user-role">State Controller</div>
+      </div>
+    </div>
+    <button class="logout-btn">Log out</button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="location-dot"></div>
+    <span class="location-label">Raipur</span>
+  </div>
+
+  <div class="page">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Manpower Checklist</div>
+        <div class="page-sub">Supplier &amp; procurement verification checklist</div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn-outline" onclick="clearForm()">Clear Form</button>
+        <button class="btn-primary" onclick="window.print()">⬇ Export / Print</button>
+      </div>
+    </div>
+
+    <!-- ══ 1. MASTER DATA ══ -->
+    <div class="section-heading">
+      <div class="section-num">1</div>
+      <div class="section-title">Master Data</div>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Supplier Information</div></div>
+      <div class="card-body">
+        <div class="row2">
+          <div class="field"><label>Supplier Name</label><input type="text" placeholder="Enter supplier name"></div>
+          <div class="field"><label>PAN</label><input type="text" placeholder="ABCDE1234F" maxlength="10"></div>
+        </div>
+        <div class="row3">
+          <div class="field"><label>GST Number</label><input type="text" placeholder="27ABCDE1234F1Z5"></div>
+          <div class="field"><label>EPF Registration No.</label><input type="text" placeholder="EPF No."></div>
+          <div class="field"><label>ESIC Registration No.</label><input type="text" placeholder="ESIC No."></div>
+        </div>
+        <div class="field" style="max-width:320px"><label>Labour License No.</label><input type="text" placeholder="Licence number"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">File &amp; Fund Details</div></div>
+      <div class="card-body">
+        <div class="row4">
+          <div class="field"><label>Name of Department</label><input type="text"></div>
+          <div class="field"><label>File No.</label><input type="text"></div>
+          <div class="field"><label>Name of Fund</label><input type="text"></div>
+          <div class="field"><label>Checklist No.</label><input type="text"></div>
+        </div>
+        <div class="row3">
+          <div class="field"><label>Flow Chart Reference</label><input type="text"></div>
+          <div class="field"><label>Name of Checker</label><input type="text"></div>
+          <div class="field"><label>Date</label><input type="date"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 2. PURCHASE & TENDER ══ -->
+    <div class="section-heading">
+      <div class="section-num">2</div>
+      <div class="section-title">Purchase &amp; Tender</div>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">GEM Availability &amp; Mode of Purchase</div></div>
+      <div class="card-body">
+        <div class="row2">
+          <div class="field">
+            <label>Item Availability in GEM</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="gem" value="yes" onchange="t2('gem-yes','gem-no','yes',this)"> Yes</label>
+              <label class="radio-label"><input type="radio" name="gem" value="no" onchange="t2('gem-yes','gem-no','no',this)"> No</label>
+            </div>
+          </div>
+          <div class="field">
+            <label>Mode of Purchase</label>
+            <select onchange="showMode(this.value)" style="max-width:220px">
+              <option value="">— Select —</option>
+              <option value="quotation">By Quotation</option>
+              <option value="tender">By Tender</option>
+            </select>
+          </div>
+        </div>
+        <div id="gem-yes" class="cond-block" style="display:none"><div class="status-ok">Item available in GEM — OK</div></div>
+        <div id="gem-no" class="cond-block red" style="display:none">
+          <div class="field"><label>Non-Availability Report</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="nar"> Available</label>
+              <label class="radio-label"><input type="radio" name="nar"> Not Available</label>
+            </div>
+          </div>
+        </div>
+        <div id="mode-quotation" class="cond-block" style="display:none">
+          <div class="row2">
+            <div class="field"><label>Quotation Ref. No.</label><input type="text"></div>
+            <div class="field"><label>Quotation Date</label><input type="date"></div>
+          </div>
+          <div class="field"><label>Quotation Details</label><textarea placeholder="Enter details…"></textarea></div>
+        </div>
+        <div id="mode-tender" class="cond-block" style="display:none">
+          <div class="row2">
+            <div class="field"><label>Tender No.</label><input type="text"></div>
+            <div class="field"><label>Tender Date</label><input type="date"></div>
+          </div>
+          <div class="field"><label>Tender Details</label><textarea placeholder="Enter details…"></textarea></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Financial Approval</div></div>
+      <div class="card-body">
+        <div class="row2">
+          <div class="field"><label>Estimated Amount (₹)</label><input type="number" placeholder="0.00"></div>
+          <div class="field"><label>Source of Fund</label><input type="text"></div>
+        </div>
+        <div class="field">
+          <label>Financial Approval Available?</label>
+          <div class="radio-group">
+            <label class="radio-label"><input type="radio" name="fin" value="yes" onchange="t2('fin-yes','fin-no','yes',this)"> Yes</label>
+            <label class="radio-label"><input type="radio" name="fin" value="no" onchange="t2('fin-yes','fin-no','no',this)"> No</label>
+          </div>
+        </div>
+        <div id="fin-yes" class="cond-block" style="display:none">
+          <div class="row4">
+            <div class="field"><label>Approval Number</label><input type="text"></div>
+            <div class="field"><label>Approval Date</label><input type="date"></div>
+            <div class="field"><label>Approved Value (₹)</label><input type="number"></div>
+            <div class="field"><label>Name of Approver</label><input type="text"></div>
+          </div>
+          <div class="field" style="max-width:320px"><label>Authority of Approver</label><input type="text"></div>
+        </div>
+        <div id="fin-no" class="cond-block red" style="display:none"><div class="red-flag">Financial approval not available</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Tender Publishing &amp; Committee Approval</div></div>
+      <div class="card-body">
+        <div class="row2">
+          <div>
+            <div class="field">
+              <label>Tender Published?</label>
+              <div class="radio-group">
+                <label class="radio-label"><input type="radio" name="tpub" value="yes" onchange="t2('tpub-yes','tpub-no','yes',this)"> Yes</label>
+                <label class="radio-label"><input type="radio" name="tpub" value="no" onchange="t2('tpub-yes','tpub-no','no',this)"> No</label>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="field">
+              <label>Tender Committee Approval?</label>
+              <div class="radio-group">
+                <label class="radio-label"><input type="radio" name="tcomm" value="yes" onchange="t2('tcomm-yes','tcomm-no','yes',this)"> Yes</label>
+                <label class="radio-label"><input type="radio" name="tcomm" value="no" onchange="t2('tcomm-yes','tcomm-no','no',this)"> No</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="tpub-yes" class="cond-block" style="display:none">
+          <div class="row2">
+            <div class="field"><label>Publication Date</label><input type="date"></div>
+            <div class="field"><label>Newspaper(s)</label><input type="text" placeholder="Name of newspaper(s)"></div>
+          </div>
+        </div>
+        <div id="tpub-no" class="cond-block red" style="display:none"><div class="red-flag">Publishing details not available</div></div>
+        <div id="tcomm-yes" class="cond-block" style="display:none">
+          <div class="row4">
+            <div class="field"><label>Approval Number</label><input type="text"></div>
+            <div class="field"><label>Approval Date</label><input type="date"></div>
+            <div class="field"><label>Approved Value (₹)</label><input type="number"></div>
+            <div class="field"><label>Name of Approver</label><input type="text"></div>
+          </div>
+          <div class="field" style="max-width:320px"><label>Authority of Approver</label><input type="text"></div>
+        </div>
+        <div id="tcomm-no" class="cond-block red" style="display:none"><div class="red-flag">Tender Committee approval not available</div></div>
+      </div>
+    </div>
+
+    <!-- ══ 3. SUPPLY ORDER ══ -->
+    <div class="section-heading">
+      <div class="section-num">3</div>
+      <div class="section-title">Supply Order</div>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Supply Order Details</div></div>
+      <div class="card-body">
+        <div class="field">
+          <label>Supply Order Available?</label>
+          <div class="radio-group">
+            <label class="radio-label"><input type="radio" name="so" value="yes" onchange="t2('so-yes','so-no','yes',this)"> Yes</label>
+            <label class="radio-label"><input type="radio" name="so" value="no" onchange="t2('so-yes','so-no','no',this)"> No</label>
+          </div>
+        </div>
+        <div id="so-no" class="cond-block red" style="display:none"><div class="red-flag">Supply order not available</div></div>
+        <div id="so-yes" class="cond-block" style="display:none">
+          <div class="row4">
+            <div class="field"><label>Supply Order No.</label><input type="text"></div>
+            <div class="field"><label>Supply Order Date</label><input type="date"></div>
+            <div class="field"><label>Date of Supply as per PO</label><input type="date"></div>
+            <div class="field"><label>Actual Date of Supply</label><input type="date"></div>
+          </div>
+          <div class="field">
+            <label>Extended Date Required?</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="ext" value="yes" onchange="t2('ext-yes','ext-no','yes',this)"> Yes</label>
+              <label class="radio-label"><input type="radio" name="ext" value="no" onchange="t2('ext-yes','ext-no','no',this)"> No</label>
+            </div>
+          </div>
+          <div id="ext-yes" class="cond-block" style="display:none">
+            <div class="row2">
+              <div class="field"><label>Extended Date</label><input type="date"></div>
+              <div class="field"><label>Remark for Extension</label><input type="text" placeholder="Reason / remark"></div>
+            </div>
+          </div>
+          <div id="ext-no" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 4. ATTENDANCE & EPF ══ -->
+    <div class="section-heading">
+      <div class="section-num">4</div>
+      <div class="section-title">Attendance &amp; EPF / ESIC</div>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Attendance &amp; Compliance</div></div>
+      <div class="card-body">
+        <div class="row2">
+          <div class="field">
+            <label>Attendance Verified?</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="att" value="yes" onchange="t2('att-yes','att-no','yes',this)"> Yes</label>
+              <label class="radio-label"><input type="radio" name="att" value="no" onchange="t2('att-yes','att-no','no',this)"> No</label>
+            </div>
+          </div>
+          <div class="field">
+            <label>EPF &amp; ESIC Paid?</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="epf" value="yes" onchange="t2('epf-yes','epf-no','yes',this)"> Yes</label>
+              <label class="radio-label"><input type="radio" name="epf" value="no" onchange="t2('epf-yes','epf-no','no',this)"> No</label>
+            </div>
+          </div>
+        </div>
+        <div id="att-yes" class="cond-block" style="display:none"><div class="status-ok">Attendance verified — OK</div></div>
+        <div id="att-no" class="cond-block red" style="display:none"><div class="red-flag">Attendance not available</div></div>
+        <div id="epf-yes" class="cond-block" style="display:none"><div class="status-ok">EPF &amp; ESIC Challan available — OK</div></div>
+        <div id="epf-no" class="cond-block red" style="display:none"><div class="red-flag">EPF / ESIC Challan not available</div></div>
+      </div>
+    </div>
+
+    <!-- ══ 5. BILL DETAILS ══ -->
+    <div class="section-heading">
+      <div class="section-num">5</div>
+      <div class="section-title">Bill Details</div>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Bill Information</div></div>
+      <div class="card-body">
+        <div class="row3">
+          <div class="field"><label>Bill Type</label>
+            <select><option value="">— Select —</option><option>RA Bill</option><option>Final Bill</option></select>
+          </div>
+          <div class="field"><label>Bill Number</label><input type="text" placeholder="Enter bill number"></div>
+          <div class="field"><label>Bill Amount (₹)</label><input type="number" placeholder="0.00"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Availability of Remaining Fund</div></div>
+      <div class="card-body">
+        <div class="row3">
+          <div class="field"><label>Amount Sanctioned (a) ₹</label><input type="number" placeholder="0.00" id="fund-a" oninput="calcFund()"></div>
+          <div class="field"><label>Payment Till Date (b) ₹</label><input type="number" placeholder="0.00" id="fund-b" oninput="calcFund()"></div>
+          <div class="field"><label>Remaining Balance (a−b) ₹</label><input type="number" id="fund-rem" readonly placeholder="Auto" style="color:#16a34a;font-weight:600"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Bill Details</div></div>
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width:70px;background:#fde8cc;color:#1e2235;border-right:1px solid var(--border)">S.No</th>
+              <th style="background:#fde8cc;color:#1e2235;border-right:1px solid var(--border)">Head</th>
+              <th style="width:110px;background:#fde8cc;color:#1e2235;border-right:1px solid var(--border)">Rate</th>
+              <th style="width:130px;background:#fde8cc;color:#1e2235;border-right:1px solid var(--border)">Amount</th>
+              <th style="background:#fde8cc;color:#1e2235">Remark</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="text-align:center;color:var(--muted);font-size:12px;border-right:1px solid var(--border)">1.1</td>
+              <td style="border-right:1px solid var(--border)">Gross Amount as approved by Auditor / Accounts Officer</td>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" id="d11" oninput="calcNet()" placeholder="0.00"></td>
+              <td><input type="text"></td>
+            </tr>
+            <tr>
+              <td style="text-align:center;color:var(--muted);font-size:12px;border-right:1px solid var(--border)">1.2</td>
+              <td style="border-right:1px solid var(--border)">Security Deposit</td>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" id="d12" oninput="calcNet()" placeholder="0.00"></td>
+              <td><input type="text"></td>
+            </tr>
+            <tr>
+              <td style="text-align:center;color:var(--muted);font-size:12px;border-right:1px solid var(--border)">1.3</td>
+              <td style="border-right:1px solid var(--border)">Income Tax</td>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" id="d13" oninput="calcNet()" placeholder="0.00"></td>
+              <td><input type="text"></td>
+            </tr>
+            <tr>
+              <td style="text-align:center;color:var(--muted);font-size:12px;border-right:1px solid var(--border)">1.4</td>
+              <td style="border-right:1px solid var(--border)">Penalty / LD</td>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" id="d14" oninput="calcNet()" placeholder="0.00"></td>
+              <td><input type="text"></td>
+            </tr>
+            <tr>
+              <td style="text-align:center;color:var(--muted);font-size:12px;border-right:1px solid var(--border)">1.5</td>
+              <td style="border-right:1px solid var(--border)">Advance Adjusted</td>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" id="d15" oninput="calcNet()" placeholder="0.00"></td>
+              <td><input type="text"></td>
+            </tr>
+            <tr>
+              <td style="text-align:center;color:var(--muted);font-size:12px;border-right:1px solid var(--border)">1.6</td>
+              <td style="border-right:1px solid var(--border)">Under / Over Payment in Last Bill</td>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" id="d16" oninput="calcNet()" placeholder="0.00"></td>
+              <td><input type="text"></td>
+            </tr>
+            <tr>
+              <td style="text-align:center;color:var(--muted);font-size:12px;border-right:1px solid var(--border)">1.7</td>
+              <td style="border-right:1px solid var(--border)">Difference in Amount as per agreement and total invoice till date</td>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" id="d17" oninput="calcNet()" placeholder="0.00"></td>
+              <td><input type="text"></td>
+            </tr>
+            <tr style="background:#f0fdf4">
+              <td style="border-right:1px solid var(--border)"></td>
+              <td style="font-weight:700;color:#1e2235;border-right:1px solid var(--border)">Net Amount eligible for payment</td>
+              <td style="border-right:1px solid var(--border)"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" id="net-amt" readonly style="background:transparent;border:none;color:#16a34a;font-weight:700;font-size:13px;width:100%"></td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+        <div class="card-title">Bill Summary Table</div>
+        <button class="btn-add-row" onclick="addBillRow()">+ Add Row</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="data-table" id="bill-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="width:110px;vertical-align:middle;border-right:1px solid var(--border)">Bill Number</th>
+              <th rowspan="2" style="width:110px;vertical-align:middle;border-right:1px solid var(--border)">Note Sheet No.</th>
+              <th rowspan="2" style="width:130px;vertical-align:middle;border-right:1px solid var(--border)">Bill Amount</th>
+              <th rowspan="2" style="width:130px;vertical-align:middle;border-right:1px solid var(--border)">Gross Payment</th>
+              <th colspan="2" style="text-align:center;border-right:1px solid var(--border);border-bottom:1px solid var(--border)">Deduction</th>
+              <th rowspan="2" style="width:120px;vertical-align:middle">Net Payment</th>
+              <th rowspan="2" style="width:40px;vertical-align:middle"></th>
+            </tr>
+            <tr>
+              <th style="width:130px;border-right:1px solid var(--border)">Head</th>
+              <th style="width:110px;border-right:1px solid var(--border)">Amount</th>
+            </tr>
+          </thead>
+          <tbody id="bill-tbody">
+            <tr>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" placeholder="0.00" class="bill-amt" oninput="calcNetPay(this)"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" placeholder="0.00" class="gross-pay" oninput="calcNetPay(this)"></td>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="Head"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" placeholder="0.00" class="ded-amt" oninput="calcNetPay(this)"></td>
+              <td><input type="number" placeholder="0.00" class="net-pay" readonly style="color:#16a34a;font-weight:600"></td>
+              <td style="text-align:center"><button class="btn-del-row" onclick="delRow(this)" title="Remove row">×</button></td>
+            </tr>
+            <tr>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" placeholder="0.00" class="bill-amt" oninput="calcNetPay(this)"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" placeholder="0.00" class="gross-pay" oninput="calcNetPay(this)"></td>
+              <td style="border-right:1px solid var(--border)"><input type="text" placeholder="Head"></td>
+              <td style="border-right:1px solid var(--border)"><input type="number" placeholder="0.00" class="ded-amt" oninput="calcNetPay(this)"></td>
+              <td><input type="number" placeholder="0.00" class="net-pay" readonly style="color:#16a34a;font-weight:600"></td>
+              <td style="text-align:center"><button class="btn-del-row" onclick="delRow(this)" title="Remove row">×</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ 6. AUDIT CHECKLIST ══ -->
+    <div class="section-heading">
+      <div class="section-num">6</div>
+      <div class="section-title">Audit Checklist</div>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="card">
+      <div>
+        <div class="audit-head"><span>Particulars</span><span>Response</span><span>Remark</span></div>
+        <div class="audit-row">
+          <div><div class="audit-no">1.1</div><div class="audit-text">Whether attendance system is proper.</div></div>
+          <select class="audit-select"><option value="">—</option><option>Yes</option><option>No</option><option>N/A</option></select>
+          <div class="audit-remark"><input type="text" placeholder="Remark"></div>
+        </div>
+        <div class="audit-row">
+          <div><div class="audit-no">1.2</div><div class="audit-text">Whether comparative statements prepared and approved by appropriate authority.</div></div>
+          <select class="audit-select"><option value="">—</option><option>Yes</option><option>No</option><option>N/A</option></select>
+          <div class="audit-remark"><input type="text" placeholder="Remark"></div>
+        </div>
+        <div class="audit-row">
+          <div><div class="audit-no">1.3</div><div class="audit-text">Whether copy of agreements / PO / tender for purchases more than ₹1 lakh was inspected by the Auditor.</div></div>
+          <select class="audit-select"><option value="">—</option><option>Yes</option><option>No</option><option>N/A</option></select>
+          <div class="audit-remark"><input type="text" placeholder="Remark"></div>
+        </div>
+        <div class="audit-row">
+          <div><div class="audit-no">1.4</div><div class="audit-text">Whether Earnest Money / Security Deposit is 3% or more of the estimated purchase value.</div></div>
+          <select class="audit-select"><option value="">—</option><option>Yes</option><option>No</option><option>N/A</option></select>
+          <div class="audit-remark"><input type="text" placeholder="Remark"></div>
+        </div>
+        <div class="audit-row">
+          <div><div class="audit-no">1.5</div><div class="audit-text">Whether Industries registered as Small-Scale Industrial Units were given priority as per rules.</div></div>
+          <select class="audit-select" id="ssi-sel" onchange="toggleSSI(this.value)"><option value="">—</option><option>Yes</option><option>No</option><option>N/A</option></select>
+          <div class="audit-remark"><input type="text" placeholder="Remark"></div>
+        </div>
+        <div class="audit-row sub" id="ssi-sub" style="display:none">
+          <div style="padding-left:20px"><div class="audit-no">1.5.1</div><div class="audit-text">If yes, whether they are given exemption from depositing EMD.</div></div>
+          <select class="audit-select"><option value="">—</option><option>Yes</option><option>No</option></select>
+          <div class="audit-remark"><input type="text" placeholder="Remark"></div>
+        </div>
+        <div class="audit-row">
+          <div><div class="audit-no">1.6</div><div class="audit-text">Whether important plant &amp; machinery purchased from supplier registered with DGA&amp;D.</div></div>
+          <select class="audit-select"><option value="">—</option><option>Yes</option><option>No</option><option>N/A</option></select>
+          <div class="audit-remark"><input type="text" placeholder="Remark"></div>
+        </div>
+        <div class="audit-row">
+          <div><div class="audit-no">1.7</div><div class="audit-text">Whether payment is likely to be made within 20 days of invoice / goods received.</div></div>
+          <select class="audit-select"><option value="">—</option><option>Yes</option><option>No</option><option>N/A</option></select>
+          <div class="audit-remark"><input type="text" placeholder="Remark"></div>
+        </div>
+        <div class="audit-row">
+          <div><div class="audit-no">1.8</div><div class="audit-text">Whether in case of late payment without reason, interest at prevailing bank rate to be paid along with payment.</div></div>
+          <select class="audit-select"><option value="">—</option><option>Yes</option><option>No</option><option>N/A</option></select>
+          <div class="audit-remark"><input type="text" placeholder="Remark"></div>
+        </div>
+        <div class="audit-row">
+          <div><div class="audit-no">1.9</div><div class="audit-text">Prepare calculation in prescribed Excel sheet.</div></div>
+          <select class="audit-select"><option value="">—</option><option>Done</option><option>Pending</option><option>N/A</option></select>
+          <div class="audit-remark"><input type="text" placeholder="Remark"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 7. DOCUMENTS ══ -->
+    <div class="section-heading">
+      <div class="section-num">7</div>
+      <div class="section-title">Documents</div>
+      <div class="section-line"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Books of Accounts to be Updated</div></div>
+      <div class="card-body">
+        <div class="docs-grid">
+          <div class="doc-item" onclick="toggleDoc(this)"><input type="checkbox" onclick="event.stopPropagation();toggleDoc(this.closest('.doc-item'))"> Attendance Register</div>
+          <div class="doc-item" onclick="toggleDoc(this)"><input type="checkbox" onclick="event.stopPropagation();toggleDoc(this.closest('.doc-item'))"> Cheque Issue Register</div>
+          <div class="doc-item" onclick="toggleDoc(this)"><input type="checkbox" onclick="event.stopPropagation();toggleDoc(this.closest('.doc-item'))"> Cash Book</div>
+          <div class="doc-item" onclick="toggleDoc(this)"><input type="checkbox" onclick="event.stopPropagation();toggleDoc(this.closest('.doc-item'))"> Work File</div>
+          <div class="doc-item" onclick="toggleDoc(this)"><input type="checkbox" onclick="event.stopPropagation();toggleDoc(this.closest('.doc-item'))"> Grant Register (if applicable)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Documents to be Collected from Supplier</div></div>
+      <div class="card-body">
+        <div class="docs-grid">
+          <div class="doc-item" onclick="toggleDoc(this)"><input type="checkbox" onclick="event.stopPropagation();toggleDoc(this.closest('.doc-item'))"> Invoice</div>
+          <div class="doc-item" onclick="toggleDoc(this)"><input type="checkbox" onclick="event.stopPropagation();toggleDoc(this.closest('.doc-item'))"> Attendance Register</div>
+          <div class="doc-item" onclick="toggleDoc(this)"><input type="checkbox" onclick="event.stopPropagation();toggleDoc(this.closest('.doc-item'))"> Labour License — Validity of Work</div>
+          <div class="doc-item" onclick="toggleDoc(this)"><input type="checkbox" onclick="event.stopPropagation();toggleDoc(this.closest('.doc-item'))"> EPF and ESIC Challan</div>
+          <div class="doc-item" onclick="toggleDoc(this)"><input type="checkbox" onclick="event.stopPropagation();toggleDoc(this.closest('.doc-item'))"> Payment Confirmation Sheet</div>
+          <div class="doc-item" onclick="toggleDoc(this)"><input type="checkbox" onclick="event.stopPropagation();toggleDoc(this.closest('.doc-item'))"> Bank Statement</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-outline" onclick="clearForm()">Clear Form</button>
+      <button class="btn-primary" onclick="window.print()">⬇ Export / Print</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function t2(yId, nId, val, radio) {
+    const y = document.getElementById(yId), n = document.getElementById(nId);
+    if (!y || !n) return;
+    y.style.display = (radio.value === 'yes') ? 'flex' : 'none';
+    n.style.display = (radio.value === 'no')  ? 'flex' : 'none';
+  }
+  function showMode(v) {
+    document.getElementById('mode-quotation').style.display = v === 'quotation' ? 'flex' : 'none';
+    document.getElementById('mode-tender').style.display    = v === 'tender'    ? 'flex' : 'none';
+  }
+  function calcFund() {
+    const a = parseFloat(document.getElementById('fund-a').value) || 0;
+    const b = parseFloat(document.getElementById('fund-b').value) || 0;
+    document.getElementById('fund-rem').value = (a - b).toFixed(2);
+  }
+  function calcNet() {
+    const g = parseFloat(document.getElementById('d11').value) || 0;
+    const d = ['d12','d13','d14','d15','d16','d17'].reduce((s,id) => s + (parseFloat(document.getElementById(id).value)||0), 0);
+    document.getElementById('net-amt').value = (g - d).toFixed(2);
+  }
+  function calcNetPay(el) {
+    const row = el.closest('tr');
+    const gross = parseFloat(row.querySelector('.gross-pay').value) || 0;
+    const ded   = parseFloat(row.querySelector('.ded-amt').value)   || 0;
+    row.querySelector('.net-pay').value = (gross - ded).toFixed(2);
+  }
+  function addBillRow() {
+    const tbody = document.getElementById('bill-tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+      <td style="border-right:1px solid var(--border)"><input type="text" placeholder="—"></td>
+      <td style="border-right:1px solid var(--border)"><input type="number" placeholder="0.00" class="bill-amt" oninput="calcNetPay(this)"></td>
+      <td style="border-right:1px solid var(--border)"><input type="number" placeholder="0.00" class="gross-pay" oninput="calcNetPay(this)"></td>
+      <td style="border-right:1px solid var(--border)"><input type="text" placeholder="Head"></td>
+      <td style="border-right:1px solid var(--border)"><input type="number" placeholder="0.00" class="ded-amt" oninput="calcNetPay(this)"></td>
+      <td><input type="number" placeholder="0.00" class="net-pay" readonly style="color:#16a34a;font-weight:600"></td>
+      <td style="text-align:center"><button class="btn-del-row" onclick="delRow(this)" title="Remove row">×</button></td>`;
+    tbody.appendChild(tr);
+    tr.querySelector('input').focus();
+  }
+  function delRow(btn) {
+    const tbody = document.getElementById('bill-tbody');
+    if (tbody.rows.length <= 1) return;
+    btn.closest('tr').remove();
+  }
+  function toggleSSI(v) {
+    const el = document.getElementById('ssi-sub');
+    el.style.display = v === 'Yes' ? 'grid' : 'none';
+  }
+  function toggleDoc(el) {
+    const cb = el.querySelector('input[type=checkbox]');
+    cb.checked = !cb.checked;
+    el.classList.toggle('checked', cb.checked);
+  }
+  function clearForm() {
+    if (!confirm('Clear all form data?')) return;
+    document.querySelectorAll('input:not([type=radio]):not([type=checkbox]),select,textarea').forEach(el => el.value = '');
+    document.querySelectorAll('input[type=radio],input[type=checkbox]').forEach(el => el.checked = false);
+    ['gem-yes','gem-no','mode-quotation','mode-tender','fin-yes','fin-no',
+     'tpub-yes','tpub-no','tcomm-yes','tcomm-no','so-yes','so-no',
+     'ext-yes','ext-no','att-yes','att-no','epf-yes','epf-no'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.style.display = 'none';
+    });
+    document.getElementById('ssi-sub').style.display = 'none';
+    document.querySelectorAll('.doc-item').forEach(el => el.classList.remove('checked'));
+  }
+</script>
+</body>
+</html>
