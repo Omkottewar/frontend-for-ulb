@@ -23,16 +23,19 @@ const SignUpPage = () => {
     if (!form.role) return setError("Please select a role.");
 
     try {
-      const res = await registerUser({
+      await registerUser({
         name: form.name,
         email: form.email,
         password: form.password,
         roleId: form.role
       });
 
-      setSession(res.token, res.user);
-      navigate("/dashboard");
+      // Clear everything
+      localStorage.clear();
+      sessionStorage.clear();
 
+      // Redirect to login
+      navigate("/login");
     } catch (err) {
       setError(err.message);
     }
