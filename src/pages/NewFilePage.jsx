@@ -2,26 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { createFile } from "../services/filesService";
 import { uploadAttachments } from "../services/attachmentsService";
 import { getUlbs } from "../services/masterDataService";
+import { CONTRACT_TYPES } from "../assets/data";
+import { ULB_OFFICERS } from "../assets/data";
+import { MANDATORY_SLOTS } from "../assets/data";
 
-const CONTRACT_TYPES = [
-  { name: "Adv_to_Emp", id: "607e248c-27e5-4ba6-8b96-8a8f364befbd" ,template_id: "d7801530-b05b-44dd-bd06-165d8c6056b3"},
-  { name: "Manpower Service", id: "fff383fb-3e2a-4fbf-96f1-9b49cbd397a0" ,template_id: "443de5e8-cfc3-4f11-98df-446f84c1d737"},
-  { name: "Procurement", id: "db284496-bf82-4e0d-88df-3808bfe13b7d" ,template_id: "f6df8dcc-2d1d-432e-9892-0485dd844a89"},
-  { name: "Service", id: "f15abb46-6e71-4956-bd86-d071cde7ca1b" ,template_id: "2b165788-0ae1-4f37-89de-8ac5edf11f12"},
-];
 
-const ULB_OFFICERS = [
-  "Amit Sharma", "Priya Verma", "Rajesh Kumar", "Sunita Patel",
-  "Manoj Singh", "Deepika Yadav", "Vikas Tiwari", "Neha Gupta",
-  "Arun Mishra", "Kavita Soni",
-];
-
-const MANDATORY_SLOTS = [
-  { key: "page1", label: "1st Page" },
-  { key: "last3", label: "Last Page - 2" },
-  { key: "last2", label: "Last Page - 1" },
-  { key: "last1", label: "Last Page" },
-];
 
 const formatSize = (bytes) => {
   if (bytes < 1024) return `${bytes} B`;

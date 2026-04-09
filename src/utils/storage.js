@@ -10,7 +10,14 @@ export const getStorageUrl = (storagePath) => {
   if (!storagePath) return null;
   return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${storagePath}`;
 };
-
+// utils/storage.js — add this alongside downloadFile
+export const getFileUrl = async (storagePath) => {
+  const supabase = getSupabase(); // your supabase client
+  const { data } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(storagePath, 60 * 60); // 1 hour expiry
+  return data?.signedUrl ?? null;
+};
 export const downloadFile = async (storagePath, fileName) => {
   try {
     const url = getStorageUrl(storagePath);

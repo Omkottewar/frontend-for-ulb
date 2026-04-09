@@ -33,32 +33,27 @@ const computeField = (formula, getVal) => {
   return "";
 };
 
-/** Compute line-items summary */
-const computeLineItemSummary = (summary, getRowVal) => {
+/** Compute line-items summary using the actual amount column from section */
+const computeLineItemSummary = (summary, amountColumnId, getRowVal) => {
   if (!summary?.formula) return 0;
   const f = summary.formula;
-  const base = Number(getRowVal(f.base, "bd_amount")) || 0;
-  const deductions = (f.deductions || []).reduce(
-    (s, id) => s + (Number(getRowVal(id, "bd_amount")) || 0),
-    0
-  );
-  const adjustments = (f.adjustments || []).reduce(
-    (s, id) => s + (Number(getRowVal(id, "bd_amount")) || 0),
-    0
-  );
-  return base - deductions + adjustments;
+  // FIX: use dynamic amountColumnId instead of hardcoded "bd_amount"
+  const getAmount = (rowId) => Number(getRowVal(rowId, amountColumnId)) || 0;
+
+  let result = getAmount(f.base);
+  (f.deductions  || []).forEach(rowId => { result -= getAmount(rowId); });
+  (f.adjustments || []).forEach(rowId => { result += getAmount(rowId); });
+  return result;
 };
 
 /* ══════════════════════════════════════════════════════════════
    FIELD RENDERER
-   Renders a single field based on its type
    ══════════════════════════════════════════════════════════════ */
 
 const FieldRenderer = ({ field, value, onChange, disabled }) => {
   const val = value ?? "";
 
   switch (field.type) {
-    /* ── Text ── */
     case "text":
       return (
         <input
@@ -71,7 +66,18 @@ const FieldRenderer = ({ field, value, onChange, disabled }) => {
         />
       );
 
-    /* ── Number ── */
+    case "textarea":
+      return (
+        <textarea
+          value={val}
+          disabled={disabled}
+          placeholder={field.placeholder || ""}
+          rows={3}
+          onChange={(e) => onChange(e.target.value)}
+          className={cls(inputBase, "resize-none", disabled && "opacity-50 cursor-not-allowed")}
+        />
+      );
+
     case "number":
       if (field.computed || field.readonly) {
         return (
@@ -91,7 +97,6 @@ const FieldRenderer = ({ field, value, onChange, disabled }) => {
         />
       );
 
-    /* ── Date ── */
     case "date":
       return (
         <input
@@ -103,25 +108,22 @@ const FieldRenderer = ({ field, value, onChange, disabled }) => {
         />
       );
 
-    /* ── Radio (yes/no style) ── */
     case "radio":
     case "yes_no_na": {
       const options = field.options || [
         { label: "Yes", value: "yes" },
-        { label: "No", value: "no" },
+        { label: "No",  value: "no"  },
       ];
       return (
         <div className="flex gap-1.5">
           {options.map((opt) => {
-            const optVal = typeof opt === "object" ? opt.value : opt;
+            const optVal   = typeof opt === "object" ? opt.value : opt;
             const optLabel = typeof opt === "object" ? opt.label : opt;
-            const active = val === optVal;
+            const active   = val === optVal;
 
             let activeStyle = "bg-gray-400 text-white border-gray-400";
-            if (optLabel === "Yes" || optVal === "yes")
-              activeStyle = "bg-green-500 text-white border-green-500";
-            else if (optLabel === "No" || optVal === "no")
-              activeStyle = "bg-red-500 text-white border-red-500";
+            if (optVal === "yes") activeStyle = "bg-green-500 text-white border-green-500";
+            else if (optVal === "no") activeStyle = "bg-red-500 text-white border-red-500";
 
             return (
               <button
@@ -145,7 +147,6 @@ const FieldRenderer = ({ field, value, onChange, disabled }) => {
       );
     }
 
-    /* ── Dropdown / Select ── */
     case "dropdown":
     case "select": {
       const options = field.options || [];
@@ -158,19 +159,14 @@ const FieldRenderer = ({ field, value, onChange, disabled }) => {
         >
           <option value="">Select…</option>
           {options.map((opt) => {
-            const optVal = typeof opt === "object" ? opt.value : opt;
+            const optVal   = typeof opt === "object" ? opt.value : opt;
             const optLabel = typeof opt === "object" ? opt.label : opt;
-            return (
-              <option key={optVal} value={optVal}>
-                {optLabel}
-              </option>
-            );
+            return <option key={optVal} value={optVal}>{optLabel}</option>;
           })}
         </select>
       );
     }
 
-    /* ── Readonly / Red flag ── */
     case "readonly":
       return (
         <div
@@ -178,12 +174,13 @@ const FieldRenderer = ({ field, value, onChange, disabled }) => {
             "text-sm px-3 py-2 rounded-lg",
             field.flagType === "red_flag"
               ? "bg-red-50 text-red-600 border border-red-200 font-medium"
+              : field.flagType === "success"
+              ? "bg-green-50 text-green-700 border border-green-200 font-medium"
               : "bg-gray-50 text-gray-500 border border-gray-200"
           )}
         >
-          {field.flagType === "red_flag" && (
-            <span className="mr-1.5">🚩</span>
-          )}
+          {field.flagType === "red_flag" && <span className="mr-1.5">🚩</span>}
+          {field.flagType === "success"  && <span className="mr-1.5">✅</span>}
           {field.defaultValue || val || "—"}
         </div>
       );
@@ -207,19 +204,16 @@ const FieldRenderer = ({ field, value, onChange, disabled }) => {
    ══════════════════════════════════════════════════════════════ */
 
 const RegularSection = ({ section, responses, onFieldChange, disabled }) => {
-  const fields = section.fields || [];
+  const fields            = section.fields || [];
   const conditionalGroups = section.conditionalGroups || [];
 
-  // Determine which conditional fields to show
   const visibleConditionalFields = useMemo(() => {
     const result = [];
     for (const group of conditionalGroups) {
       const cond = group.showWhen;
       if (!cond) continue;
       const current = responses[cond.fieldId]?.value;
-      if (current === cond.equals) {
-        result.push(...(group.fields || []));
-      }
+      if (current === cond.equals) result.push(...(group.fields || []));
     }
     return result;
   }, [conditionalGroups, responses]);
@@ -230,9 +224,9 @@ const RegularSection = ({ section, responses, onFieldChange, disabled }) => {
   useEffect(() => {
     for (const field of allFields) {
       if (field.computed && field.formula) {
-        const getVal = (id) => responses[id]?.value ?? "";
+        const getVal   = (id) => responses[id]?.value ?? "";
         const computed = computeField(field.formula, getVal);
-        const current = responses[field.fieldId]?.value;
+        const current  = responses[field.fieldId]?.value;
         if (String(computed) !== String(current ?? "")) {
           onFieldChange(field.fieldId, String(computed));
         }
@@ -240,10 +234,8 @@ const RegularSection = ({ section, responses, onFieldChange, disabled }) => {
     }
   }, [allFields, responses, onFieldChange]);
 
-  // Layout: if <=3 fields of simple types, use grid
-  const useGrid = allFields.length <= 4 && allFields.every(
-    (f) => f.type !== "textarea" && f.type !== "readonly"
-  );
+  const useGrid = allFields.length <= 4 &&
+    allFields.every((f) => f.type !== "textarea" && f.type !== "readonly");
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -302,7 +294,7 @@ const RegularSection = ({ section, responses, onFieldChange, disabled }) => {
 };
 
 /* ══════════════════════════════════════════════════════════════
-   SECTION: Dynamic Table (e.g. Payment Summary)
+   SECTION: Dynamic Table  (type: "table")
    ══════════════════════════════════════════════════════════════ */
 
 const TableSection = ({ section, responses, onFieldChange, disabled }) => {
@@ -310,7 +302,6 @@ const TableSection = ({ section, responses, onFieldChange, disabled }) => {
   const storageKey = `__table_${section.sectionId}`;
   const minRows = section.minRows || 1;
 
-  // Parse stored rows from responses or initialize
   const [rows, setRows] = useState(() => {
     try {
       const stored = responses[storageKey]?.value;
@@ -319,13 +310,12 @@ const TableSection = ({ section, responses, onFieldChange, disabled }) => {
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch { /* ignore */ }
-    // Initialize empty rows
     return Array.from({ length: minRows }, () =>
       Object.fromEntries(columns.map((c) => [c.columnId, ""]))
     );
   });
 
-  // Sync rows back to responses
+  // Sync rows → shared responses state
   useEffect(() => {
     onFieldChange(storageKey, JSON.stringify(rows));
   }, [rows, storageKey]);
@@ -364,7 +354,9 @@ const TableSection = ({ section, responses, onFieldChange, disabled }) => {
       {section.title && (
         <div className="bg-gray-50 px-5 py-3 border-b border-gray-100 flex items-center justify-between">
           <p className="text-sm font-semibold text-gray-700">{section.title}</p>
-          <span className="text-xs text-gray-400">{rows.length} row{rows.length !== 1 ? "s" : ""}</span>
+          <span className="text-xs text-gray-400">
+            {rows.length} row{rows.length !== 1 ? "s" : ""}
+          </span>
         </div>
       )}
 
@@ -402,6 +394,14 @@ const TableSection = ({ section, responses, onFieldChange, disabled }) => {
                           ? fmtCurrency(row[col.columnId])
                           : row[col.columnId] || "—"}
                       </span>
+                    ) : col.type === "date" ? (
+                      <input
+                        type="date"
+                        value={row[col.columnId] ?? ""}
+                        disabled={disabled}
+                        onChange={(e) => updateCell(rIdx, col.columnId, e.target.value)}
+                        className={cls(cellInput, disabled && "opacity-50 cursor-not-allowed")}
+                      />
                     ) : (
                       <input
                         type={col.type === "number" ? "number" : "text"}
@@ -437,10 +437,15 @@ const TableSection = ({ section, responses, onFieldChange, disabled }) => {
           <button
             type="button"
             onClick={addRow}
-            disabled={section.maxRows && rows.length >= section.maxRows}
+            disabled={!!(section.maxRows && rows.length >= section.maxRows)}
             className="text-xs font-medium text-[#1a2744] hover:underline disabled:opacity-40 disabled:no-underline"
           >
             + Add Row
+            {section.maxRows && (
+              <span className="ml-1 text-gray-400 font-normal">
+                ({rows.length}/{section.maxRows})
+              </span>
+            )}
           </button>
         </div>
       )}
@@ -449,7 +454,7 @@ const TableSection = ({ section, responses, onFieldChange, disabled }) => {
 };
 
 /* ══════════════════════════════════════════════════════════════
-   SECTION: Checklist Table (e.g. Verification Checklist)
+   SECTION: Checklist Table  (type: "checklist_table")
    ══════════════════════════════════════════════════════════════ */
 
 const ChecklistTableSection = ({ section, responses, onFieldChange, disabled }) => {
@@ -484,9 +489,9 @@ const ChecklistTableSection = ({ section, responses, onFieldChange, disabled }) 
           <tbody>
             {items.map((item) => {
               const respFieldId = item.responseField?.fieldId;
-              const remFieldId = item.remarkField?.fieldId;
-              const respVal = responses[respFieldId]?.value ?? "";
-              const remVal = responses[remFieldId]?.value ?? "";
+              const remFieldId  = item.remarkField?.fieldId;
+              const respVal     = responses[respFieldId]?.value ?? "";
+              const remVal      = responses[remFieldId]?.value  ?? "";
 
               return (
                 <tr key={item.itemId} className="border-b border-gray-50 align-top">
@@ -537,26 +542,51 @@ const ChecklistTableSection = ({ section, responses, onFieldChange, disabled }) 
 };
 
 /* ══════════════════════════════════════════════════════════════
-   SECTION: Line Items Table (e.g. Bill Details)
+   SECTION: Line Items Table  (type: "line_items_table")
+   FIX: was receiving onFieldChange but calling setResponses —
+        now uses onFieldChange consistently AND computes summary
+        using the actual amount columnId, not a hardcoded string
    ══════════════════════════════════════════════════════════════ */
 
 const LineItemsTableSection = ({ section, responses, onFieldChange, disabled }) => {
-  const columns = section.columns || [];
-  const rows = section.rows || [];
-  const summary = section.summary;
 
-  const editableColumns = columns.filter(
-    (c) => c.type !== "readonly"
+  // Detect the amount column dynamically (first number column that isn't readonly)
+  const amountColumn = useMemo(() =>
+    section.columns?.find(c => c.type === "number" && c.columnId.includes("amount")) ||
+    section.columns?.find(c => c.type === "number" && !c.computed),
+    [section.columns]
   );
+  const amountColumnId = amountColumn?.columnId ?? "bd_amount";
 
-  const getRowVal = (rowId, colId) => {
-    return responses[`${rowId}__${colId}`]?.value ?? "";
+  // ── read a cell value from shared responses ────────────────────
+  const getCellValue = (rowId, columnId) =>
+    responses[`${rowId}_${columnId}`]?.value ?? "";
+
+  // ── write a cell change into shared responses ──────────────────
+  // FIX: was calling setResponses directly — now uses onFieldChange
+  //      which correctly writes into the parent responses map
+  const handleCellChange = (rowId, columnId, value) => {
+    onFieldChange(`${rowId}_${columnId}`, value);
   };
 
+  // ── compute summary using dynamic amount column ────────────────
   const summaryValue = useMemo(() => {
-    if (!summary) return 0;
-    return computeLineItemSummary(summary, getRowVal);
-  }, [summary, responses]);
+    if (!section.summary?.formula) return null;
+    const getRowVal = (rowId, colId) => getCellValue(rowId, colId);
+    return computeLineItemSummary(section.summary, amountColumnId, getRowVal);
+  }, [section.summary, amountColumnId, responses]);
+
+  const formatCurrency = (val) => {
+    const num = parseFloat(val);
+    if (isNaN(num)) return "—";
+    return `₹${num.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  };
+
+  const cellIn =
+    "w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#1a2744] disabled:bg-gray-50 disabled:text-gray-400 bg-white";
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -568,9 +598,11 @@ const LineItemsTableSection = ({ section, responses, onFieldChange, disabled }) 
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
+
+          {/* ── header ── */}
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/50">
-              {columns.map((col) => (
+            <tr className="border-b border-gray-200 bg-gray-50/50">
+              {section.columns.map(col => (
                 <th
                   key={col.columnId}
                   className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wide px-4 py-2.5 whitespace-nowrap"
@@ -580,75 +612,82 @@ const LineItemsTableSection = ({ section, responses, onFieldChange, disabled }) 
               ))}
             </tr>
           </thead>
+
+          {/* ── data rows ── */}
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.rowId} className="border-b border-gray-50 align-top">
-                {columns.map((col) => {
-                  // Readonly columns show fixed data
+            {section.rows.map((row) => (
+              <tr
+                key={row.rowId}
+                className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50 transition-colors"
+              >
+                {section.columns.map(col => {
+                  // readonly columns — pull display value from row definition
                   if (col.type === "readonly") {
-                    const staticVal =
-                      col.columnId.endsWith("sr_no") ? row.srNo :
-                      col.columnId.endsWith("head") ? row.head : "";
+                    const displayVal =
+                      col.columnId.includes("sr_no") ? row.srNo  :
+                      col.columnId.includes("head")   ? row.head  :
+                      row[col.columnId] ?? "—";
+
                     return (
-                      <td key={col.columnId} className="px-4 py-3 text-sm text-gray-700">
-                        {col.columnId.endsWith("sr_no") ? (
-                          <span className="text-xs font-semibold text-gray-400">{staticVal}</span>
-                        ) : (
-                          staticVal
-                        )}
+                      <td key={col.columnId} className="px-4 py-2.5 text-sm text-gray-600 whitespace-nowrap">
+                        {displayVal}
                       </td>
                     );
                   }
 
-                  // Editable columns
-                  const key = `${row.rowId}__${col.columnId}`;
-                  const val = responses[key]?.value ?? "";
+                  const currentValue = getCellValue(row.rowId, col.columnId);
 
                   return (
-                    <td key={col.columnId} className="px-3 py-2">
+                    <td key={col.columnId} className="px-2 py-1.5">
                       <input
                         type={col.type === "number" ? "number" : "text"}
-                        value={val}
+                        value={currentValue}
                         disabled={disabled || !row.isEditable}
-                        onChange={(e) => onFieldChange(key, e.target.value)}
-                        className={cls(
-                          cellInput,
-                          "py-2",
-                          (disabled || !row.isEditable) && "opacity-50 cursor-not-allowed"
-                        )}
+                        placeholder={col.format === "currency" ? "0.00" : col.type === "number" ? "0" : ""}
+                        onChange={e => handleCellChange(row.rowId, col.columnId, e.target.value)}
+                        className={cls(cellIn, (disabled || !row.isEditable) && "opacity-50 cursor-not-allowed")}
                       />
                     </td>
                   );
                 })}
               </tr>
             ))}
+          </tbody>
 
-            {/* Summary row */}
-            {summary && (
+          {/* ── computed summary row ── */}
+          {section.summary && (
+            <tfoot>
               <tr className="bg-[#1a2744]/5 border-t-2 border-[#1a2744]/20">
-                {columns.map((col, cIdx) => {
-                  if (col.type === "readonly" && col.columnId.endsWith("sr_no")) {
-                    return <td key={col.columnId} className="px-4 py-3" />;
-                  }
-                  if (col.type === "readonly" && col.columnId.endsWith("head")) {
+                {section.columns.map((col) => {
+                  if (col.columnId.includes("sr_no")) {
                     return (
-                      <td key={col.columnId} className="px-4 py-3 text-sm font-semibold text-gray-800">
-                        {summary.head}
+                      <td key={col.columnId} className="px-4 py-3 text-xs text-gray-400 font-medium">
+                        Net
                       </td>
                     );
                   }
-                  if (col.columnId.endsWith("amount")) {
+                  if (col.columnId.includes("head")) {
                     return (
-                      <td key={col.columnId} className="px-4 py-3 text-sm font-bold text-[#1a2744]">
-                        {fmtCurrency(summaryValue)}
+                      <td key={col.columnId} className="px-4 py-3 text-sm font-semibold text-gray-700">
+                        {section.summary.head}
+                      </td>
+                    );
+                  }
+                  // FIX: was checking for literal "bd_amount" — now uses dynamic amountColumnId
+                  if (col.columnId === amountColumnId) {
+                    return (
+                      <td key={col.columnId} className="px-4 py-3">
+                        <span className="text-sm font-bold text-[#1a2744]">
+                          {summaryValue !== null ? formatCurrency(summaryValue) : "—"}
+                        </span>
                       </td>
                     );
                   }
                   return <td key={col.columnId} className="px-4 py-3" />;
                 })}
               </tr>
-            )}
-          </tbody>
+            </tfoot>
+          )}
         </table>
       </div>
     </div>
@@ -656,11 +695,88 @@ const LineItemsTableSection = ({ section, responses, onFieldChange, disabled }) 
 };
 
 /* ══════════════════════════════════════════════════════════════
+   SECTION: Document Checklist  (type: "document_checklist")
+   FIX: was completely missing from SectionRenderer — added now
+   ══════════════════════════════════════════════════════════════ */
+
+const DocumentChecklistSection = ({ section, responses, onFieldChange, disabled }) => {
+  const items = section.items || [];
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {section.title && (
+        <div className="bg-gray-50 px-5 py-3 border-b border-gray-100">
+          <p className="text-sm font-semibold text-gray-700">{section.title}</p>
+        </div>
+      )}
+
+      <div className="divide-y divide-gray-50">
+        {items.map((item) => {
+          const fieldId = item.checkField?.fieldId;
+          const checked = responses[fieldId]?.value === "true" ||
+                          responses[fieldId]?.value === true;
+
+          return (
+            <div
+              key={item.itemId}
+              className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50/50 transition-colors"
+            >
+              {/* Sr No */}
+              <span className="text-xs font-semibold text-gray-400 w-8 shrink-0">
+                {item.srNo}
+              </span>
+
+              {/* Document name */}
+              <div className="flex-1 min-w-0">
+                <span className="text-sm text-gray-700">{item.document}</span>
+                {item.conditionNote && (
+                  <span className="ml-2 text-xs text-amber-500 italic">
+                    {item.conditionNote}
+                  </span>
+                )}
+              </div>
+
+              {/* Label */}
+              <span className="text-xs text-gray-400 shrink-0">
+                {item.checkField?.label || "Checked"}
+              </span>
+
+              {/* Checkbox */}
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onFieldChange(fieldId, checked ? "false" : "true")}
+                className={cls(
+                  "w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0",
+                  checked
+                    ? "bg-[#1a2744] border-[#1a2744]"
+                    : "border-gray-300 hover:border-[#1a2744]",
+                  disabled && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {checked && (
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════════════════════
    SECTION ROUTER
+   FIX: added document_checklist case; LineItemsTableSection now
+        receives onFieldChange (not setResponses) consistently
    ══════════════════════════════════════════════════════════════ */
 
 const SectionRenderer = ({ section, responses, onFieldChange, disabled }) => {
   switch (section.type) {
+
     case "table":
       return (
         <TableSection
@@ -670,6 +786,7 @@ const SectionRenderer = ({ section, responses, onFieldChange, disabled }) => {
           disabled={disabled}
         />
       );
+
     case "checklist_table":
       return (
         <ChecklistTableSection
@@ -679,15 +796,29 @@ const SectionRenderer = ({ section, responses, onFieldChange, disabled }) => {
           disabled={disabled}
         />
       );
+
     case "line_items_table":
+      // FIX: was missing — was never rendered; also passes onFieldChange
       return (
         <LineItemsTableSection
+          section={section}
+          responses={responses}
+          onFieldChange={onFieldChange}   // ✅ consistent prop name
+          disabled={disabled}
+        />
+      );
+
+    case "document_checklist":
+      // FIX: was completely absent from this router
+      return (
+        <DocumentChecklistSection
           section={section}
           responses={responses}
           onFieldChange={onFieldChange}
           disabled={disabled}
         />
       );
+
     default:
       return (
         <RegularSection
@@ -725,36 +856,7 @@ const DynamicChecklistForm = ({
     [form.sections]
   );
 
-  // Count progress across ALL field types
-  const { total, answered } = useMemo(() => {
-    let t = 0;
-    let a = 0;
-
-    for (const sec of sections) {
-      // Regular fields
-      if (sec.fields) {
-        for (const f of sec.fields) {
-          if (f.type === "readonly" || f.computed) continue;
-          t++;
-          const v = responses[f.fieldId]?.value;
-          if (v !== null && v !== undefined && v !== "") a++;
-        }
-      }
-
-      // Checklist table items
-      if (sec.type === "checklist_table" && sec.items) {
-        for (const item of sec.items) {
-          t++;
-          const v = responses[item.responseField?.fieldId]?.value;
-          if (v !== null && v !== undefined && v !== "") a++;
-        }
-      }
-    }
-
-    return { total: t, answered: a };
-  }, [sections, responses]);
-
-  // Stable callback for field changes
+  // Stable callback — writes any field into responses by fieldId/key
   const handleFieldChange = useCallback(
     (fieldId, value) => {
       setResponses((prev) => ({
@@ -765,13 +867,34 @@ const DynamicChecklistForm = ({
     [setResponses]
   );
 
-  // Collect red flags
+  // Progress: count regular fields + checklist_table response fields
+  const { total, answered } = useMemo(() => {
+    let t = 0, a = 0;
+    for (const sec of sections) {
+      if (sec.fields) {
+        for (const f of sec.fields) {
+          if (f.type === "readonly" || f.computed) continue;
+          t++;
+          const v = responses[f.fieldId]?.value;
+          if (v !== null && v !== undefined && v !== "") a++;
+        }
+      }
+      if (sec.type === "checklist_table" && sec.items) {
+        for (const item of sec.items) {
+          t++;
+          const v = responses[item.responseField?.fieldId]?.value;
+          if (v !== null && v !== undefined && v !== "") a++;
+        }
+      }
+    }
+    return { total: t, answered: a };
+  }, [sections, responses]);
+
+  // Active red flags
   const redFlags = useMemo(() => {
-    const flags = [];
+    const flags  = [];
     const flagIds = form.metadata?.redFlagFields || [];
     for (const id of flagIds) {
-      // A red flag is "active" if the parent conditional made it visible
-      // Check if the flag field's section conditional is currently matching
       for (const sec of sections) {
         for (const cg of sec.conditionalGroups || []) {
           const parentVal = responses[cg.showWhen?.fieldId]?.value;
@@ -790,7 +913,8 @@ const DynamicChecklistForm = ({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header / Progress */}
+
+      {/* ── Header / Progress ── */}
       <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold text-gray-700">
@@ -811,7 +935,7 @@ const DynamicChecklistForm = ({
           )}
           <div className="w-32 h-1.5 bg-gray-100 rounded-full overflow-hidden">
             <div
-              className="h-full bg-[#1a2744] rounded-full transition-all"
+              className="h-full bg-[#1a2744] rounded-full transition-all duration-300"
               style={{ width: `${total > 0 ? (answered / total) * 100 : 0}%` }}
             />
           </div>
@@ -821,7 +945,7 @@ const DynamicChecklistForm = ({
         </div>
       </div>
 
-      {/* Sections */}
+      {/* ── Sections ── */}
       {sections.map((section, idx) => (
         <SectionRenderer
           key={section.sectionId || idx}
@@ -832,9 +956,9 @@ const DynamicChecklistForm = ({
         />
       ))}
 
-      {/* Save */}
+      {/* ── Save button ── */}
       {!disabled && onSave && (
-        <div className="flex justify-end">
+        <div className="flex justify-end pb-4">
           <button
             type="button"
             onClick={onSave}

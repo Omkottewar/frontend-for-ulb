@@ -8,7 +8,8 @@ import { useFiles } from "../context/FilesContext";
 import { canAccessFile } from "../utils/accessControl";
 import ManpowerChecklistForm from "../components/ManpowerChecklistForm";
 import DynamicChecklistForm from "../components/DynamicChecklistForm";
-
+import { CONTRACT_TYPES, TRANSLATIONS, VALUE_MAP, STATUS_STYLES } from "../assets/data";
+import { downloadFile, getFileUrl } from "../utils/storage";
 import {
   getChecklistsByFile,
   createChecklistForFile,
@@ -18,11 +19,8 @@ import {
   getChecklistAttachments,
   uploadChecklistAttachments,
 } from "../services/checklistService";
-
 import { getFileDetail, updateFile as updateFileApi, getFileVersions } from "../services/filesService";
-import { getQueriesByFile } from "../services/queriesService";
-import { downloadFile } from "../utils/storage";
-
+import { createQuery, getQueriesByFile } from "../services/queriesService";
 // ── Constants (UI-only) ────────────────────────────────────────────
 const RISK_STYLES = {
   High: "bg-red-100 text-red-600",
@@ -34,31 +32,6 @@ const CHECKLIST_STATUS_STYLES = {
   "In Progress": "bg-blue-100 text-blue-600",
   Completed: "bg-green-100 text-green-600"
 };
-const STATUS_STYLES = {
-  "Pre-Audit": "bg-orange-100 text-orange-500",
-  "Post-Audit": "bg-pink-100 text-pink-500",
-  Indexed: "bg-cyan-100 text-cyan-600",
-  Closed: "bg-gray-100 text-gray-500",
-  "Under Review": "bg-blue-100 text-blue-500",
-  Finalized: "bg-purple-100 text-purple-600",
-};
-
-const ULB_OPTIONS = [
-  "Raipur Municipal Corporation",
-  "Bilaspur Municipal Corporation",
-  "Durg Municipal Council",
-  "Korba Municipal Council",
-  "Rajnandgaon Nagar Panchayat",
-  "Jagdalpur Nagar Panchayat",
-];
-
-const FIELD_LABELS = {
-  fileNumber: "File Number",
-  fileTitle: "File Title",
-  workDescription: "Work Description",
-  amount: "Amount",
-  riskFlag: "Risk Flag",
-};
 
 const TABS = [
   "Details",
@@ -68,7 +41,11 @@ const TABS = [
   "Statutory Compliance",
   "Queries",
 ];
-
+const [creatingChecklist, setCreatingChecklist] = useState(false);
+const [savingMasterData, setSavingMasterData] = useState(false);
+const [previewUrl, setPreviewUrl] = useState(null);
+const [previewFileName, setPreviewFileName] = useState("");
+const [previewLoading, setPreviewLoading] = useState(false);
 const PRIORITY_STYLES = {
   High: "bg-red-100 text-red-500",
   Medium: "bg-orange-100 text-orange-500",
@@ -95,6 +72,9 @@ const getAgeing = (dateStr) => {
   if (isNaN(created.getTime())) return null;
   return Math.floor((Date.now() - created) / (1000 * 60 * 60 * 24));
 };
+// The placeholder supplier seeded by default — if this ID comes back,
+// treat it as "no real supplier linked yet" and prompt the user to fill it in.
+const DEFAULT_SUPPLIER_ID = "44444444-4444-4444-4444-000000000002";
 
 /** Format a date string (ISO or DD/MM/YYYY) to DD/MM/YYYY for display */
 const formatDateDisplay = (dateStr) => {
@@ -105,88 +85,6 @@ const formatDateDisplay = (dateStr) => {
   return d.toLocaleDateString("en-IN");
 };
 
-// ── i18n ────────────────────────────────────────────────────────────
-const TRANSLATIONS = {
-  en: {
-    backToFiles: "← Back to Files",
-    riskSuffix: "Risk",
-    fileInfo: "File Information",
-    ulbTimeline: "ULB & Timeline",
-    fileNumber: "File Number",
-    fileTitle: "File Title",
-    workDescription: "Work Description",
-    amountPutUp: "Amount Put Up",
-    contractType: "Contract Type",
-    riskFlag: "Risk Flag",
-    status: "Status",
-    dateIndexed: "Date Indexed",
-    category: "Category",
-    entrySource: "Entry Source",
-    ulb: "ULB",
-    ulbCategory: "ULB Category",
-    geography: "Geography",
-    createdBy: "Created By",
-    created: "Created",
-    pendingModule: "Available after master & resource allocation module",
-    edit: "Edit",
-    cancel: "Cancel",
-    saveChanges: "Save Changes",
-    reasonLabel: "Reason for changes",
-    reasonOptional: "(optional)",
-    reasonPlaceholder: "Briefly describe why you are making these changes...",
-  },
-  hi: {
-    backToFiles: "← फ़ाइलों पर वापस",
-    riskSuffix: "जोखिम",
-    fileInfo: "फ़ाइल जानकारी",
-    ulbTimeline: "ULB और समयरेखा",
-    fileNumber: "फ़ाइल नंबर",
-    fileTitle: "फ़ाइल शीर्षक",
-    workDescription: "कार्य विवरण",
-    amountPutUp: "प्रस्तुत राशि",
-    contractType: "अनुबंध प्रकार",
-    riskFlag: "जोखिम स्तर",
-    status: "स्थिति",
-    dateIndexed: "अनुक्रमण तिथि",
-    category: "श्रेणी",
-    entrySource: "प्रविष्टि स्रोत",
-    ulb: "ULB",
-    ulbCategory: "ULB श्रेणी",
-    geography: "भूगोल",
-    createdBy: "निर्माणकर्ता",
-    created: "निर्मित तिथि",
-    pendingModule: "मास्टर और संसाधन आवंटन मॉड्यूल के बाद उपलब्ध",
-    edit: "संपादित करें",
-    cancel: "रद्द करें",
-    saveChanges: "परिवर्तन सहेजें",
-    reasonLabel: "परिवर्तन का कारण",
-    reasonOptional: "(वैकल्पिक)",
-    reasonPlaceholder: "संक्षेप में बताएं कि आप ये परिवर्तन क्यों कर रहे हैं...",
-  },
-};
-
-const VALUE_MAP = {
-  "Road restoration": "सड़क पुनर्स्थापना",
-  Service: "सेवा",
-  Works: "कार्य",
-  Supply: "आपूर्ति",
-  Consultancy: "परामर्श",
-  Medium: "मध्यम",
-  High: "उच्च",
-  Low: "निम्न",
-  "Pre-Audit": "पूर्व-ऑडिट",
-  "Post-Audit": "पश्च-ऑडिट",
-  Indexed: "अनुक्रमित",
-  Closed: "बंद",
-  "Under Review": "समीक्षाधीन",
-  "Raipur Municipal Corporation": "रायपुर नगर निगम",
-  "Bilaspur Municipal Corporation": "बिलासपुर नगर निगम",
-  "Durg Municipal Council": "दुर्ग नगर परिषद",
-  "Korba Municipal Council": "कोरबा नगर परिषद",
-  "Rajnandgaon Nagar Panchayat": "राजनांदगांव नगर पंचायत",
-  "Jagdalpur Nagar Panchayat": "जगदलपुर नगर पंचायत",
-};
-
 // ── Helpers ────────────────────────────────────────────────────────
 const formatSize = (bytes) => {
   if (!bytes) return "";
@@ -194,29 +92,6 @@ const formatSize = (bytes) => {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
-
-// const loadVersionHistory = (fileNumber) => {
-//   try {
-//     const all = JSON.parse(localStorage.getItem("ulb_version_history") || "{}");
-//     return all[fileNumber] || [];
-//   } catch { return []; }
-// };
-
-// const saveVersionEntry = (fileNumber, entry) => {
-//   const all = JSON.parse(localStorage.getItem("ulb_version_history") || "{}");
-//   if (!all[fileNumber]) all[fileNumber] = [];
-//   all[fileNumber].unshift(entry);
-//   localStorage.setItem("ulb_version_history", JSON.stringify(all));
-// };
-
-// const updateFileRecord = (updatedFile) => {
-//   const files = JSON.parse(localStorage.getItem("ulb_files") || "[]");
-//   const idx = files.findIndex((f) => f.fileNumber === updatedFile.fileNumber);
-//   if (idx !== -1) {
-//     files[idx] = { ...files[idx], ...updatedFile };
-//     localStorage.setItem("ulb_files", JSON.stringify(files));
-//   }
-// };
 
 /**
  * Build a flat responses map from the template JSON.
@@ -278,19 +153,32 @@ const buildResponsesMap = (form) => {
     // FIX: was using `rowId__columnId` — backend uses `rowId_amount` / `rowId_remark`
     // Now we use `rowId_columnId` (single underscore) to stay consistent,
     // AND we update the backend to match this same convention (see Fix 3).
+    // ── Line items table ─────────────────────────────────────────────
     if (section.type === "line_items_table" && section.rows && section.columns) {
       for (const row of section.rows) {
         for (const col of section.columns) {
           if (col.type === "readonly") continue;
-          const key = `${row.rowId}_${col.columnId}`; // ✅ single underscore
-          resMap[key] = { value: null, remark: "" };
+          const key = `${row.rowId}_${col.columnId}`;
+          // ✅ read savedValues injected by backend instead of always null
+          resMap[key] = {
+            value: row.savedValues?.[col.columnId] ?? null,
+            remark: "",
+          };
         }
       }
     }
 
-    // ── Dynamic table ────────────────────────────────────────
-    // These are handled separately (per-row inserts), so we intentionally
-    // skip them here — no phantom keys that silently get dropped on save.
+    // ── Dynamic table ─────────────────────────────────────────────────
+    // FIX: was skipped — now initialised from savedRows injected by backend
+    if (section.type === "table") {
+      const key = `__table_${section.sectionId}`;
+      resMap[key] = {
+        value: section.savedRows?.length
+          ? JSON.stringify(section.savedRows)
+          : null,
+        remark: "",
+      };
+    }
   }
 
   return resMap;
@@ -303,7 +191,6 @@ const Row = ({ label, value }) => (
     <span className="text-sm text-gray-800 font-medium text-right">{value || "—"}</span>
   </div>
 );
-
 const inputClass =
   "w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a2744] focus:border-transparent transition";
 
@@ -327,21 +214,11 @@ const EditRow = ({ label, fieldKey, value, editMode, onChange, type = "text", op
     )}
   </div>
 );
-
 /* ── Checklist Attachments (per-checklist, API-driven) ── */
-
-const MANDATORY_SLOTS = [
-  { key: "firstPage",           label: "1st Page",      multerField: "firstPage" },
-  { key: "lastPageMinus2",      label: "Last Page - 2", multerField: "lastPage" },
-  { key: "lastPageMinus1",      label: "Last Page - 1", multerField: "lastPage" },
-  { key: "lastPage",            label: "Last Page",     multerField: "lastPage" },
-];
- 
 export const ChecklistAttachmentsSection = ({ fileId, checklistId, disabled }) => {
   const [atts, setAtts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-
   const fetchAttachments = async () => {
     try {
       setLoading(true);
@@ -353,26 +230,19 @@ export const ChecklistAttachmentsSection = ({ fileId, checklistId, disabled }) =
       setLoading(false);
     }
   };
-
   useEffect(() => {
     fetchAttachments();
   }, [checklistId]);
-
   const handleUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-
     try {
       setUploading(true);
-
       const formData = new FormData();
-
       files.forEach((file) => {
         formData.append("documents", file);
       });
-
       await uploadChecklistAttachments(fileId, checklistId, formData);
-
       await fetchAttachments();
     } catch (err) {
       console.error("Upload error:", err);
@@ -381,7 +251,6 @@ export const ChecklistAttachmentsSection = ({ fileId, checklistId, disabled }) =
       setUploading(false);
     }
   };
-
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
@@ -438,425 +307,7 @@ export const ChecklistAttachmentsSection = ({ fileId, checklistId, disabled }) =
     </div>
   );
 };
- 
-// export const ChecklistAttachmentsSection = ({ fileId, checklistId, disabled }) => {
-//   // Mandatory page photo slots — each is null | File
-//   const [mandatoryPhotos, setMandatoryPhotos] = useState({
-//     firstPage: null,
-//     lastPageMinus2: null,
-//     lastPageMinus1: null,
-//     lastPage: null,
-//   });
- 
-//   // Intermediate page photos
-//   const [pagePhotos, setPagePhotos] = useState([]);
-//   // [{ file: File, description: string }]
- 
-//   // Documents
-//   const [documents, setDocuments] = useState([]);
-//   // [File]
- 
-//   // Existing uploaded attachments from API
-//   const [uploaded, setUploaded] = useState([]);
-//   const [loadingUploaded, setLoadingUploaded] = useState(true);
- 
-//   const [docDragOver, setDocDragOver] = useState(false);
-//   const [uploading, setUploading] = useState(false);
- 
-//   // Refs for hidden file inputs
-//   const mandatoryRefs = {
-//     firstPage:      useRef(null),
-//     lastPageMinus2: useRef(null),
-//     lastPageMinus1: useRef(null),
-//     lastPage:       useRef(null),
-//   };
-//   const pagePhotoRef = useRef(null);
-//   const docInputRef  = useRef(null);
- 
-//   // ── Fetch existing attachments ──────────────────────────────────────────────
-//   const fetchUploaded = useCallback(async () => {
-//     try {
-//       setLoadingUploaded(true);
-//       const data = await getChecklistAttachments(checklistId);
-//       setUploaded(Array.isArray(data) ? data : []);
-//     } catch (err) {
-//       console.error("Failed to load attachments:", err);
-//     } finally {
-//       setLoadingUploaded(false);
-//     }
-//   }, [checklistId]);
- 
-//   useEffect(() => { fetchUploaded(); }, [fetchUploaded]);
- 
-//   // ── Mandatory photo handlers ─────────────────────────────────────────────────
-//   const handleMandatoryUpload = (key, files) => {
-//     const file = files[0];
-//     if (file) setMandatoryPhotos((prev) => ({ ...prev, [key]: file }));
-//   };
- 
-//   const removeMandatory = (key) => {
-//     setMandatoryPhotos((prev) => ({ ...prev, [key]: null }));
-//     // reset input so same file can be re-selected
-//     if (mandatoryRefs[key]?.current) mandatoryRefs[key].current.value = "";
-//   };
- 
-//   // ── Intermediate page photo handlers ────────────────────────────────────────
-//   const addPagePhotos = (files) => {
-//     const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
-//     setPagePhotos((prev) => [
-//       ...prev,
-//       ...images.map((f) => ({ file: f, description: "" })),
-//     ]);
-//     if (pagePhotoRef.current) pagePhotoRef.current.value = "";
-//   };
- 
-//   const updatePagePhotoDesc = (index, desc) => {
-//     setPagePhotos((prev) =>
-//       prev.map((p, i) => (i === index ? { ...p, description: desc } : p))
-//     );
-//   };
- 
-//   const removePagePhoto = (index) => {
-//     setPagePhotos((prev) => prev.filter((_, i) => i !== index));
-//   };
- 
-//   // ── Document handlers ────────────────────────────────────────────────────────
-//   const addDocuments = (files) => {
-//     setDocuments((prev) => [...prev, ...Array.from(files)]);
-//     if (docInputRef.current) docInputRef.current.value = "";
-//   };
- 
-//   const removeDocument = (index) => {
-//     setDocuments((prev) => prev.filter((_, i) => i !== index));
-//   };
- 
-//   const handleDocDrop = (e) => {
-//     e.preventDefault();
-//     setDocDragOver(false);
-//     addDocuments(e.dataTransfer.files);
-//   };
- 
-//   // ── Upload all ───────────────────────────────────────────────────────────────
-//   const handleUploadAll = async () => {
-//     const hasAny =
-//       Object.values(mandatoryPhotos).some(Boolean) ||
-//       pagePhotos.length > 0 ||
-//       documents.length > 0;
- 
-//     if (!hasAny) {
-//       alert("Please add at least one file before uploading.");
-//       return;
-//     }
- 
-//     try {
-//       setUploading(true);
- 
-//       // Build FormData matching multer field names on backend:
-//       //   req.files?.firstPage          → mandatory first page
-//       //   req.files?.lastPage           → mandatory last pages (multiple)
-//       //   req.files?.intermediatePages  → intermediate page photos
-//       //   req.files?.documents          → other documents
-//       const formData = new FormData();
- 
-//       // Mandatory slots
-//       MANDATORY_SLOTS.forEach((slot) => {
-//         const file = mandatoryPhotos[slot.key];
-//         if (file) formData.append(slot.multerField, file);
-//       });
- 
-//       // Intermediate page photos
-//       pagePhotos.forEach((p) => {
-//         formData.append("intermediatePages", p.file);
-//       });
- 
-//       // Documents
-//       documents.forEach((doc) => {
-//         formData.append("documents", doc);
-//       });
- 
-//       // Service: uploadChecklistAttachments(fileId, checklistId, formData)
-//       // Note: pass formData directly — service posts it with Content-Type: undefined
-//       await uploadChecklistAttachments(fileId, checklistId, formData);
- 
-//       // Clear local staging state
-//       setMandatoryPhotos({ firstPage: null, lastPageMinus2: null, lastPageMinus1: null, lastPage: null });
-//       setPagePhotos([]);
-//       setDocuments([]);
- 
-//       // Refresh uploaded list
-//       await fetchUploaded();
- 
-//       alert("Attachments uploaded successfully.");
-//     } catch (err) {
-//       console.error("Upload error:", err);
-//       alert("Upload failed: " + (err?.response?.data?.message || err.message));
-//     } finally {
-//       setUploading(false);
-//     }
-//   };
- 
-//   const hasStagedFiles =
-//     Object.values(mandatoryPhotos).some(Boolean) ||
-//     pagePhotos.length > 0 ||
-//     documents.length > 0;
- 
-//   // ── Read-only view ───────────────────────────────────────────────────────────
-//   if (disabled) {
-//     if (loadingUploaded) return <p className="text-sm text-gray-400 py-4">Loading attachments…</p>;
-//     if (uploaded.length === 0) return (
-//       <p className="text-sm text-gray-400 italic">No attachments for this checklist.</p>
-//     );
- 
-//     const pageAtts = uploaded.filter((a) => a.category === "page");
-//     const docAtts  = uploaded.filter((a) => a.category === "document");
- 
-//     return (
-//       <div className="space-y-3">
-//         {pageAtts.length > 0 && (
-//           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-//             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-5 pt-4 pb-2">Page Photos</p>
-//             {pageAtts.map((att, i) => (
-//               <div key={att.id || i} className="flex items-center gap-3 px-5 py-3 border-t border-gray-50">
-//                 <span className="text-xs font-semibold text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded shrink-0">{att.slot || "IMG"}</span>
-//                 <span className="text-sm text-gray-700 truncate flex-1">{att.fileName}</span>
-//                 <span className="text-xs text-gray-400 shrink-0">{formatSize(att.fileSize)}</span>
-//               </div>
-//             ))}
-//           </div>
-//         )}
-//         {docAtts.length > 0 && (
-//           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-//             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-5 pt-4 pb-2">Documents</p>
-//             {docAtts.map((att, i) => (
-//               <div key={att.id || i} className="flex items-center gap-3 px-5 py-3 border-t border-gray-50">
-//                 <span className="text-xs font-semibold text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded shrink-0">{att.fileName?.split(".").pop() || "file"}</span>
-//                 <span className="text-sm text-gray-700 truncate flex-1">{att.fileName}</span>
-//                 <span className="text-xs text-gray-400 shrink-0">{formatSize(att.fileSize)}</span>
-//               </div>
-//             ))}
-//           </div>
-//         )}
-//       </div>
-//     );
-//   }
- 
-//   // ── Upload UI ────────────────────────────────────────────────────────────────
-//   return (
-//     <div className="space-y-5">
- 
-//       {/* ── Already uploaded (from previous sessions) ── */}
-//       {!loadingUploaded && uploaded.length > 0 && (
-//         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-//           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-5 pt-4 pb-2">
-//             Uploaded ({uploaded.length})
-//           </p>
-//           {uploaded.map((att, i) => (
-//             <div key={att.id || i} className="flex items-center gap-3 px-5 py-3 border-t border-gray-50">
-//               <span className="text-xs font-semibold text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded shrink-0">
-//                 {att.fileName?.split(".").pop() || "file"}
-//               </span>
-//               <span className="text-sm text-gray-700 truncate flex-1">{att.fileName}</span>
-//               <span className="text-xs text-gray-400 shrink-0">{formatSize(att.fileSize)}</span>
-//             </div>
-//           ))}
-//         </div>
-//       )}
- 
-//       <div className="bg-white border border-gray-200 rounded-xl p-5">
-//         <h3 className="text-sm font-semibold text-gray-700 mb-4">Upload Attachments</h3>
- 
-//         {/* ── Mandatory Page Photos ── */}
-//         <div className="mb-6">
-//           <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-//             Mandatory Page Photos
-//           </h4>
-//           <div className="grid grid-cols-4 gap-3">
-//             {MANDATORY_SLOTS.map((slot) => {
-//               const file = mandatoryPhotos[slot.key];
-//               return (
-//                 <div key={slot.key}>
-//                   <input
-//                     type="file"
-//                     accept="image/*"
-//                     ref={mandatoryRefs[slot.key]}
-//                     className="hidden"
-//                     onChange={(e) => handleMandatoryUpload(slot.key, e.target.files)}
-//                   />
- 
-//                   {file ? (
-//                     <div className="relative border border-gray-200 rounded-lg overflow-hidden group">
-//                       <img
-//                         src={URL.createObjectURL(file)}
-//                         alt={slot.label}
-//                         className="w-full h-28 object-cover"
-//                       />
-//                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-//                         <button
-//                           type="button"
-//                           onClick={() => mandatoryRefs[slot.key].current?.click()}
-//                           className="text-white text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded transition-colors"
-//                         >
-//                           Replace
-//                         </button>
-//                         <button
-//                           type="button"
-//                           onClick={() => removeMandatory(slot.key)}
-//                           className="text-white text-xs bg-red-500/60 hover:bg-red-500/80 px-2 py-1 rounded transition-colors"
-//                         >
-//                           Remove
-//                         </button>
-//                       </div>
-//                       <span className="absolute bottom-1 left-1 text-[10px] bg-black/50 text-white px-1.5 py-0.5 rounded">
-//                         {slot.label}
-//                       </span>
-//                     </div>
-//                   ) : (
-//                     <button
-//                       type="button"
-//                       onClick={() => mandatoryRefs[slot.key].current?.click()}
-//                       className="w-full h-28 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-[#1a2744] hover:text-[#1a2744] transition-colors"
-//                     >
-//                       <span className="text-2xl leading-none">+</span>
-//                       <span className="text-xs font-medium text-center px-1">{slot.label}</span>
-//                     </button>
-//                   )}
-//                 </div>
-//               );
-//             })}
-//           </div>
-//         </div>
- 
-//         {/* ── Intermediate Page Photos ── */}
-//         <div className="mb-6">
-//           <div className="flex items-center justify-between mb-3">
-//             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-//               Intermediate Page Photos
-//             </h4>
-//             <input
-//               type="file"
-//               accept="image/*"
-//               multiple
-//               ref={pagePhotoRef}
-//               className="hidden"
-//               onChange={(e) => addPagePhotos(e.target.files)}
-//             />
-//             <button
-//               type="button"
-//               onClick={() => pagePhotoRef.current?.click()}
-//               className="text-xs text-[#1a2744] font-medium hover:underline"
-//             >
-//               + Add Photos
-//             </button>
-//           </div>
- 
-//           {pagePhotos.length === 0 ? (
-//             <div className="border-2 border-dashed border-gray-200 rounded-lg p-5 text-center text-sm text-gray-400">
-//               No intermediate pages added yet
-//             </div>
-//           ) : (
-//             <div className="grid grid-cols-4 gap-3">
-//               {pagePhotos.map((p, i) => (
-//                 <div key={i} className="border border-gray-200 rounded-lg overflow-hidden relative group">
-//                   <img
-//                     src={URL.createObjectURL(p.file)}
-//                     alt={`page-${i}`}
-//                     className="w-full h-28 object-cover"
-//                   />
-//                   <button
-//                     type="button"
-//                     onClick={() => removePagePhoto(i)}
-//                     className="absolute top-1 right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-//                   >
-//                     ×
-//                   </button>
-//                   <input
-//                     type="text"
-//                     placeholder="Description…"
-//                     value={p.description}
-//                     onChange={(e) => updatePagePhotoDesc(i, e.target.value)}
-//                     className="w-full border-t border-gray-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#1a2744]"
-//                   />
-//                 </div>
-//               ))}
-//             </div>
-//           )}
-//         </div>
- 
-//         {/* ── Documents ── */}
-//         <div className="mb-6">
-//           <div className="flex items-center justify-between mb-3">
-//             <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-//               Documents
-//             </h4>
-//             <input
-//               type="file"
-//               multiple
-//               ref={docInputRef}
-//               className="hidden"
-//               onChange={(e) => addDocuments(e.target.files)}
-//             />
-//             <button
-//               type="button"
-//               onClick={() => docInputRef.current?.click()}
-//               className="text-xs text-[#1a2744] font-medium hover:underline"
-//             >
-//               + Add Documents
-//             </button>
-//           </div>
- 
-//           <div
-//             onDragOver={(e) => { e.preventDefault(); setDocDragOver(true); }}
-//             onDragLeave={() => setDocDragOver(false)}
-//             onDrop={handleDocDrop}
-//             className={`border-2 border-dashed rounded-lg p-4 transition-colors ${
-//               docDragOver ? "border-[#1a2744] bg-blue-50" : "border-gray-200"
-//             }`}
-//           >
-//             {documents.length === 0 ? (
-//               <p className="text-center text-sm text-gray-400 py-2">
-//                 Drag &amp; drop files here, or click "+ Add Documents"
-//               </p>
-//             ) : (
-//               <ul className="space-y-2">
-//                 {documents.map((doc, i) => (
-//                   <li
-//                     key={i}
-//                     className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2"
-//                   >
-//                     <div className="flex items-center gap-2 text-sm text-gray-700 min-w-0">
-//                       <span className="text-xs font-semibold text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded shrink-0">
-//                         {doc.name.split(".").pop()}
-//                       </span>
-//                       <span className="truncate">{doc.name}</span>
-//                       <span className="text-xs text-gray-400 shrink-0">{formatSize(doc.size)}</span>
-//                     </div>
-//                     <button
-//                       type="button"
-//                       onClick={() => removeDocument(i)}
-//                       className="text-gray-400 hover:text-red-500 text-lg leading-none ml-2 shrink-0 transition-colors"
-//                     >
-//                       ×
-//                     </button>
-//                   </li>
-//                 ))}
-//               </ul>
-//             )}
-//           </div>
-//         </div>
- 
-//         {/* ── Upload Button ── */}
-//         <button
-//           type="button"
-//           onClick={handleUploadAll}
-//           disabled={uploading || !hasStagedFiles}
-//           className="bg-[#1a2744] hover:bg-[#243460] disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors"
-//         >
-//           {uploading ? "Uploading…" : "Upload Attachments"}
-//         </button>
-//       </div>
-//     </div>
-//   );
-// }
+
 
 // ── Main Component ─────────────────────────────────────────────────
 const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinalized }) => {
@@ -954,8 +405,11 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
           normalized.ulb = data.ulb.ulbName;
         }
 
-        // Supplier → masterData (map API field names to UI field names)
+        // Supplier → masterData
         if (data.supplier) {
+          // ✅ store the raw supplier ID so we can check for the default later
+          normalized.supplierId = data.supplier.id || data.supplier.supplierId || null;
+
           normalized.masterData = {
             supplierName: data.supplier.supplierName || "",
             pan: data.supplier.pan || "",
@@ -986,7 +440,39 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
   }, [fileId]);
 
   /* ─── Load version history ─── */
+  /**
+   * Scan all conditional groups in the form and return red flags
+   * whose trigger condition is currently met in responses.
+   *
+   * Returns: [{ flagFieldId, title, triggerFieldId, triggerValue }]
+   */
+  const detectTriggeredRedFlags = (form, responses) => {
+    const triggered = [];
 
+    for (const section of form?.sections || []) {
+      for (const group of section.conditionalGroups || []) {
+        const { fieldId: triggerFieldId, equals: triggerValue } = group.showWhen || {};
+        if (!triggerFieldId || !triggerValue) continue;
+
+        const currentVal = responses[triggerFieldId]?.value;
+        if (currentVal !== triggerValue) continue;
+
+        // This group's condition is met — check if it contains a red_flag field
+        for (const field of group.fields || []) {
+          if (field.flagType === "red_flag") {
+            triggered.push({
+              flagFieldId: field.fieldId,
+              title: field.defaultValue || field.label || "Auto Query",
+              triggerFieldId,
+              triggerValue,
+            });
+          }
+        }
+      }
+    }
+
+    return triggered;
+  };
   const fetchVersionHistory = useCallback(async () => {
     if (!fileId) return;
     try {
@@ -1083,7 +569,6 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
             }
           }
         }
-
         setResponses(resMap);
       } catch (err) {
         console.error("Failed to load checklist details:", err);
@@ -1091,7 +576,6 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
         if (!cancelled) setFormLoading(false);
       }
     };
-
     load();
     return () => { cancelled = true; };
   }, [selectedChecklistId]);
@@ -1127,33 +611,14 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
 
   /* ─── Checklist handlers ─── */
 
-  const CONTRACT_TYPES = [
-    { name: "Civil", id: "33333333-3333-3333-3333-000000000001", templateId: "99999999-9999-9999-9999-000000000002" },
-    { name: "Manpower Service", id: "33333333-3333-3333-3333-000000000002", templateId: "aff9289f-1fec-4a0d-903f-3ce0040485db" },
-    { name: "Procurement", id: "33333333-3333-3333-3333-000000000003", templateId: "1de0e9d3-eb6b-4802-99f3-6dfff3dcfeb9" },
-    { name: "Service", id: "33333333-3333-3333-3333-000000000004", templateId: "99999999-9999-9999-9999-000000000002" }
-  ];
-
   const handleNewChecklist = async () => {
     try {
+      if (!fileId) { alert("File ID missing"); return; }
 
-      if (!fileId) {
-        alert("File ID missing");
-        return;
-      }
+      setCreatingChecklist(true); // ✅
 
-      console.log("fileId:", fileId);
-
-      // safer phase calculation
       const phase = (checklistList?.length || 0) + 1;
-      console.log("file:", file);
-
-      console.log("file.contractTypeId:", file?.contractTypeId);
-      // determine template based on contract type
-      const contract = CONTRACT_TYPES.find(
-        (c) => c.id === file?.contractTypeId
-      );
-      console.log("Selected contract type:", contract);
+      const contract = CONTRACT_TYPES.find(c => c.id === file?.contractTypeId);
 
       if (!contract) {
         alert("Template not configured for this contract type");
@@ -1161,7 +626,7 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
       }
 
       const payload = {
-        templateId: contract.templateId,
+        templateId: contract.template_id,
         phaseNumber: phase,
         checkerName: session?.name || "",
         checkDate: new Date().toISOString().slice(0, 10),
@@ -1169,63 +634,114 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
 
       const res = await createChecklistForFile(fileId, payload);
 
-      if (!res?.success) {
-        throw new Error(res?.message || "Checklist creation failed");
-      }
+      if (!res?.success) throw new Error(res?.message || "Checklist creation failed");
 
       await fetchChecklists();
-
-      if (res?.data?.id) {
-        setSelectedChecklistId(res.data.id);
-      }
+      if (res?.data?.id) setSelectedChecklistId(res.data.id);
 
     } catch (err) {
-
       console.error("CREATE CHECKLIST ERROR:", err);
-
-      alert(
-        err?.response?.data?.message ||
-        err.message ||
-        "Failed to create checklist"
-      );
-
+      alert(err?.response?.data?.message || err.message || "Failed to create checklist");
+    } finally {
+      setCreatingChecklist(false); // ✅
     }
   };
 
-const handleSaveResponses = async () => {
-  if (!selectedChecklistId) return;
+  const handleSaveResponses = async () => {
+    if (!selectedChecklistId) return;
 
-  try {
-    setSavingResponses(true);
+    try {
+      setSavingResponses(true);
 
-    const payload = Object.entries(responses)
-      // FIX: was filtering out null/empty — this prevented clearing saved values.
-      // Now we submit ALL fields so the backend can upsert (including nulls to clear).
-      // Skip only the dynamic table placeholder keys (they have their own flow).
-      .filter(([questionId]) => !questionId.startsWith("__table_"))
-      .map(([questionId, r]) => ({
+      // ── 1. Build and submit payload ───────────────────────────────────────
+      const payload = Object.entries(responses).map(([questionId, r]) => ({
         questionId,
-        responseValue: r.value !== null && r.value !== undefined ? String(r.value) : null,
+        responseValue:
+          r.value !== null && r.value !== undefined ? String(r.value) : null,
         remark: r.remark || "",
       }));
 
-    // FIX: log what's being submitted so dropped keys are visible
-    console.log(`📤 Submitting ${payload.length} responses for checklist ${selectedChecklistId}`);
+      console.log(`📤 Submitting ${payload.length} responses`);
 
-    await saveChecklistResponses(selectedChecklistId, payload);
+      await saveChecklistResponses(selectedChecklistId, payload);
+      await apiUpdateChecklist(selectedChecklistId, { status: "In Progress" });
 
-    await apiUpdateChecklist(selectedChecklistId, { status: "In Progress" });
+      // ── 2. Detect triggered red flags ─────────────────────────────────────
+      if (checklistForm) {
+        const triggered = detectTriggeredRedFlags(checklistForm, responses);
 
-    alert("Checklist saved successfully");
-    await fetchChecklists();
+        if (triggered.length > 0) {
+          console.log(`🚩 ${triggered.length} red flag(s) triggered:`, triggered.map(t => t.title));
 
-  } catch (err) {
-    console.error("Failed to save responses:", err);
-    alert("Failed to save responses");
-  } finally {
-    setSavingResponses(false);
-  }
-};
+          // Deduplicate against already-existing queries by title
+          // so we don't raise the same auto-query twice on re-save
+          const existingTitles = new Set(fileQueries.map(q => q.title?.trim()));
+
+          const toRaise = triggered.filter(t => !existingTitles.has(t.title?.trim()));
+
+          if (toRaise.length > 0) {
+            // Default due date: 7 days from today
+            const dueDate = new Date();
+            dueDate.setDate(dueDate.getDate() + 7);
+            const dueDateStr = dueDate.toISOString().slice(0, 10);
+
+            const queryResults = await Promise.allSettled(
+              toRaise.map(flag =>
+                createQuery(fileId, {
+                  title: flag.title,
+                  description: `Auto-raised from checklist. Trigger: ${flag.triggerFieldId} = "${flag.triggerValue}"`,
+                  assignedTo: session?.id,   // assign to current user as default
+                  priority: "High",
+                  dueDate: dueDateStr,
+                  checklistId: selectedChecklistId,
+                })
+              )
+            );
+
+            const raised = queryResults.filter(r => r.status === "fulfilled").length;
+            const failed = queryResults.filter(r => r.status === "rejected").length;
+
+            queryResults.forEach((r, i) => {
+              if (r.status === "rejected") {
+                console.error(`❌ Failed to raise query for "${toRaise[i].title}":`, r.reason);
+              }
+            });
+
+            if (raised > 0) {
+              // Refresh queries list so new ones appear in Queries tab
+              await fetchQueries();
+              console.log(`✅ Auto-raised ${raised} query/queries`);
+            }
+
+            if (failed > 0) {
+              console.warn(`⚠️ ${failed} auto-query/queries failed to raise`);
+            }
+          }
+        }
+      }
+
+      // ── 3. Refresh checklists + notify user ────────────────────────────────
+      await fetchChecklists();
+
+      const flagCount = checklistForm
+        ? detectTriggeredRedFlags(checklistForm, responses).length
+        : 0;
+
+      if (flagCount > 0) {
+        alert(
+          `Checklist saved.\n\n🚩 ${flagCount} red flag${flagCount !== 1 ? "s" : ""} detected — queries have been auto-raised in the Queries tab.`
+        );
+      } else {
+        alert("Checklist saved successfully.");
+      }
+
+    } catch (err) {
+      console.error("Failed to save responses:", err);
+      alert("Failed to save responses: " + (err?.response?.data?.message || err.message));
+    } finally {
+      setSavingResponses(false);
+    }
+  };
   const handleCompleteChecklist = async () => {
     try {
 
@@ -1281,12 +797,12 @@ const handleSaveResponses = async () => {
 
     // Build partial payload — only changed fields, mapped to API field names
     const payload = {};
-    if (changedKeys.includes("fileNumber"))     payload.fileNumber   = editForm.fileNumber.trim();
-    if (changedKeys.includes("fileTitle"))      payload.title        = editForm.fileTitle.trim();
+    if (changedKeys.includes("fileNumber")) payload.fileNumber = editForm.fileNumber.trim();
+    if (changedKeys.includes("fileTitle")) payload.title = editForm.fileTitle.trim();
     if (changedKeys.includes("workDescription")) payload.description = editForm.workDescription.trim() || null;
-    if (changedKeys.includes("amount"))         payload.amount       = editForm.amount;
-    if (changedKeys.includes("riskFlag"))       payload.riskFlag     = editForm.riskFlag;
-    if (reason.trim())                          payload.reason       = reason.trim();
+    if (changedKeys.includes("amount")) payload.amount = editForm.amount;
+    if (changedKeys.includes("riskFlag")) payload.riskFlag = editForm.riskFlag;
+    if (reason.trim()) payload.reason = reason.trim();
 
     try {
       setSaveLoading(true);
@@ -1296,11 +812,11 @@ const handleSaveResponses = async () => {
       // Optimistic local state update (Option A)
       const updatedFile = {
         ...file,
-        ...(payload.fileNumber  !== undefined ? { fileNumber: payload.fileNumber }        : {}),
-        ...(payload.title       !== undefined ? { fileTitle: payload.title }              : {}),
-        ...(payload.description !== undefined ? { workDescription: payload.description }  : {}),
-        ...(payload.amount      !== undefined ? { amount: payload.amount }                : {}),
-        ...(payload.riskFlag    !== undefined ? { riskFlag: payload.riskFlag }            : {}),
+        ...(payload.fileNumber !== undefined ? { fileNumber: payload.fileNumber } : {}),
+        ...(payload.title !== undefined ? { fileTitle: payload.title } : {}),
+        ...(payload.description !== undefined ? { workDescription: payload.description } : {}),
+        ...(payload.amount !== undefined ? { amount: payload.amount } : {}),
+        ...(payload.riskFlag !== undefined ? { riskFlag: payload.riskFlag } : {}),
       };
       setFile(updatedFile);
       updateFile(updatedFile); // sync FilesContext
@@ -1322,12 +838,19 @@ const handleSaveResponses = async () => {
     }
   };
 
-  const handleMasterDataSave = () => {
-    const updatedFile = { ...file, masterData: { ...(file.masterData || {}), ...masterDataForm } };
-    updateFile(updatedFile);
-    // updateFileRecord(updatedFile);
-    setFile(updatedFile);
-    setEditMasterData(false);
+  const handleMasterDataSave = async () => {
+    try {
+      setSavingMasterData(true); // ✅
+      const updatedFile = {
+        ...file,
+        masterData: { ...(file.masterData || {}), ...masterDataForm },
+      };
+      updateFile(updatedFile);
+      setFile(updatedFile);
+      setEditMasterData(false);
+    } finally {
+      setSavingMasterData(false); // ✅
+    }
   };
 
   const handleFinalizeConfirm = (observations) => {
@@ -1349,6 +872,23 @@ const handleSaveResponses = async () => {
     } catch (err) {
       console.error("Download failed:", err);
       setDownloadStates((prev) => ({ ...prev, [key]: "error" }));
+    }
+  };
+  const handlePreview = async (att) => {
+    try {
+      setPreviewLoading(att.id ?? att.storagePath);
+      const url = await getFileUrl(att.storagePath);
+      if (url) {
+        setPreviewFileName(att.fileName);
+        setPreviewUrl(url);
+      } else {
+        alert("Could not load preview. Try downloading instead.");
+      }
+    } catch (err) {
+      console.error("Preview failed:", err);
+      alert("Preview failed.");
+    } finally {
+      setPreviewLoading(null);
     }
   };
 
@@ -1409,7 +949,6 @@ const handleSaveResponses = async () => {
           );
         })}
       </div>
-
       {/* ── Details Tab ── */}
       {activeTab === "Details" && (
         <div className="overflow-y-auto max-h-[calc(100vh-280px)]">
@@ -1518,37 +1057,113 @@ const handleSaveResponses = async () => {
               <div className="mt-4 bg-white rounded-xl border border-gray-200 p-5">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-gray-700">Supplier &amp; Fund Details</h3>
-                  {!editMasterData && !isFinalized && (
-                    <button onClick={() => { setMasterDataForm({ ...(file.masterData || {}) }); setEditMasterData(true); }} className="text-xs font-medium text-[#1a2744] border border-[#1a2744] px-3 py-1 rounded-lg hover:bg-[#1a2744] hover:text-white transition-colors">Edit</button>
-                  )}
+                  {/* {!editMasterData && !isFinalized && file.supplierId !== DEFAULT_SUPPLIER_ID && (
+                    <button
+                      onClick={() => { setMasterDataForm({ ...(file.masterData || {}) }); setEditMasterData(true); }}
+                      className="text-xs font-medium text-[#1a2744] border border-[#1a2744] px-3 py-1 rounded-lg hover:bg-[#1a2744] hover:text-white transition-colors"
+                    >
+                      Edit
+                    </button>
+                  )} */}
                 </div>
+
                 {editMasterData ? (
                   <>
                     <div className="grid grid-cols-3 gap-x-6 gap-y-3 mb-4">
-                      {[["supplierName","Supplier Name"],["pan","PAN"],["gstNumber","GST Number"],["epfRegNo","EPF Registration No."],["esicRegNo","ESIC Registration No."],["labourLicenseNo","Labour License No."],["nameOfDepartment","Name of Department"],["fileNo","File No."],["nameOfFund","Name of Fund"]].map(([key,label])=>(
-                        <div key={key}><label className="block text-xs font-medium text-gray-500 mb-1">{label}</label><input type="text" value={masterDataForm[key]??""} onChange={(e)=>setMasterDataForm(prev=>({...prev,[key]:e.target.value}))} className={inputClass}/></div>
+                      {[
+                        ["supplierName", "Supplier Name"],
+                        ["pan", "PAN"],
+                        ["gstNumber", "GST Number"],
+                        ["epfRegNo", "EPF Registration No."],
+                        ["esicRegNo", "ESIC Registration No."],
+                        ["labourLicenseNo", "Labour License No."],
+                        ["nameOfDepartment", "Name of Department"],
+                        ["fileNo", "File No."],
+                        ["nameOfFund", "Name of Fund"],
+                      ].map(([key, label]) => (
+                        <div key={key}>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+                          <input
+                            type="text"
+                            value={masterDataForm[key] ?? ""}
+                            onChange={(e) => setMasterDataForm(prev => ({ ...prev, [key]: e.target.value }))}
+                            className={inputClass}
+                          />
+                        </div>
                       ))}
                     </div>
                     <div className="flex gap-2.5">
-                      <button onClick={handleMasterDataSave} className="bg-[#1a2744] text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:bg-[#243358] transition-colors">Save</button>
-                      <button onClick={()=>setEditMasterData(false)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-1.5 rounded-lg border border-gray-200 transition-colors">Cancel</button>
+                      <button onClick={handleMasterDataSave} className="bg-[#1a2744] text-white text-sm font-medium px-4 py-1.5 rounded-lg hover:bg-[#243358] transition-colors">
+                        Save
+                      </button>
+                      <button onClick={() => setEditMasterData(false)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-1.5 rounded-lg border border-gray-200 transition-colors">
+                        Cancel
+                      </button>
                     </div>
                   </>
+                ) : file.supplierId === DEFAULT_SUPPLIER_ID || !file.supplierId ? (
+                  // ── Default / no supplier linked ────────────────────────────────
+                  <div className="flex items-start gap-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-4">
+                    <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-amber-800">Supplier details not filled</p>
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        Please enter the actual supplier details for this audit.
+                      </p>
+                      {!isFinalized && (
+                        <button
+                          onClick={() => { setMasterDataForm({}); setEditMasterData(true); }}
+                          className="mt-3 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 px-4 py-1.5 rounded-lg transition-colors"
+                        >
+                          + Enter Supplier Details
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 ) : file.masterData && Object.values(file.masterData).some(Boolean) ? (
+                  // ── Real supplier data ───────────────────────────────────────────
                   <div className="grid grid-cols-3 gap-x-8">
-                    {[["Supplier Name",file.masterData.supplierName],["PAN",file.masterData.pan],["GST Number",file.masterData.gstNumber],["EPF Reg. No.",file.masterData.epfRegNo],["ESIC Reg. No.",file.masterData.esicRegNo],["Labour License No.",file.masterData.labourLicenseNo],["Name of Department",file.masterData.nameOfDepartment],["File No.",file.masterData.fileNo],["Name of Fund",file.masterData.nameOfFund]].map(([label,value])=>(
-                      <Row key={label} label={label} value={value}/>
+                    {[
+                      ["Supplier Name", file.masterData.supplierName],
+                      ["PAN", file.masterData.pan],
+                      ["GST Number", file.masterData.gstNumber],
+                      ["EPF Reg. No.", file.masterData.epfRegNo],
+                      ["ESIC Reg. No.", file.masterData.esicRegNo],
+                      ["Labour License No.", file.masterData.labourLicenseNo],
+                      ["Name of Department", file.masterData.nameOfDepartment],
+                      ["File No.", file.masterData.fileNo],
+                      ["Name of Fund", file.masterData.nameOfFund],
+                    ].map(([label, value]) => (
+                      <Row key={label} label={label} value={value} />
                     ))}
                   </div>
+
+                  // ── Edit button for real supplier ────────────────────────────────
+                  // (already shown in the header above when supplierId !== DEFAULT)
+
                 ) : (
-                  <p className="text-sm text-gray-400 italic">No master data added yet. {!isFinalized&&<button onClick={()=>{setMasterDataForm({});setEditMasterData(true);}} className="text-[#1a2744] underline">Add now</button>}</p>
+                  // ── Real supplier but all fields empty ───────────────────────────
+                  <p className="text-sm text-gray-400 italic">
+                    No master data added yet.{" "}
+                    {!isFinalized && (
+                      <button
+                        onClick={() => { setMasterDataForm({}); setEditMasterData(true); }}
+                        className="text-[#1a2744] underline"
+                      >
+                        Add now
+                      </button>
+                    )}
+                  </p>
                 )}
               </div>
             </>
           )}
         </div>
       )}
-
       {/* ── Documents Tab ── */}
       {activeTab === "Documents" && (
         <div className="overflow-y-auto max-h-[calc(100vh-280px)] space-y-4">
@@ -1560,10 +1175,8 @@ const handleSaveResponses = async () => {
               <p className="text-xs text-gray-300 mt-1">Upload attachments via the Checklist tab.</p>
             </div>
           ) : (
-            checklistList.filter(cl=>allAttachments.some(a=>a._checklistId===cl.id)).map(cl=>{
-              const atts=allAttachments.filter(a=>a._checklistId===cl.id);
-              // const pageAtts=atts.filter(a=>a.category==="page");
-              // const docAtts=atts.filter(a=>a.category==="document"||!a.category);
+            checklistList.filter(cl => allAttachments.some(a => a._checklistId === cl.id)).map(cl => {
+              const atts = allAttachments.filter(a => a._checklistId === cl.id);
               return (
                 <div key={cl.id} className="space-y-3">
                   <div className="flex items-center gap-2">
@@ -1572,24 +1185,27 @@ const handleSaveResponses = async () => {
                   </div>
                   {atts.length > 0 && (
                     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-5 pt-4 pb-2">
-                        Attachments
-                      </p>
-                      {atts.map((att, i) => (
-                        <div key={att.id || i} className="flex items-center justify-between px-5 py-3 border-t border-gray-50">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="text-xs font-semibold text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded shrink-0">
-                              {att.slot || att.fileName?.split(".").pop() || "file"}
-                            </span>
-                            <span className="text-sm text-gray-700 truncate">{att.fileName}</span>
-                            <span className="text-xs text-gray-400 shrink-0">{formatSize(att.fileSize)}</span>
-                          </div>
-                          {att.storagePath && (() => {
-                            const dlKey = att.id ?? att.storagePath;
-                            const dlState = downloadStates[dlKey];
-                            const isDownloading = dlState === "downloading";
-                            const hasError = dlState === "error";
-                            return (
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-5 pt-4 pb-2">Attachments</p>
+                      {atts.map((att, i) => {
+                        const dlKey = att.id ?? att.storagePath;
+                        const dlState = downloadStates[dlKey];
+                        const isDownloading = dlState === "downloading";
+                        const hasError = dlState === "error";
+                        const isPreviewing = previewLoading === dlKey;
+                        const isImage = att.mimeType?.startsWith("image/") ||
+                          /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(att.fileName || "");
+
+                        return (
+                          <div key={att.id || i} className="flex items-center justify-between px-5 py-3 border-t border-gray-50">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="text-xs font-semibold text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded shrink-0">
+                                {att.slot || att.fileName?.split(".").pop() || "file"}
+                              </span>
+                              <span className="text-sm text-gray-700 truncate">{att.fileName}</span>
+                              <span className="text-xs text-gray-400 shrink-0">{formatSize(att.fileSize)}</span>
+                            </div>
+
+                            {att.storagePath && (
                               <div className="flex items-center gap-2 shrink-0 ml-4">
                                 {hasError && (
                                   <span className="flex items-center gap-1 text-xs font-medium text-red-500 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full">
@@ -1599,18 +1215,46 @@ const handleSaveResponses = async () => {
                                     Failed
                                   </span>
                                 )}
+
+                                {/* View — images only */}
+                                {isImage && (
+                                  <button
+                                    onClick={() => handlePreview(att)}
+                                    disabled={isPreviewing}
+                                    className="flex items-center gap-1.5 text-xs font-medium text-[#1a2744] hover:underline transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {isPreviewing ? (
+                                      <>
+                                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+                                        </svg>
+                                        Loading…
+                                      </>
+                                    ) : (
+                                      <>
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                        View
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+
+                                {/* Download — all files */}
                                 <button
                                   onClick={() => handleDownload(att)}
                                   disabled={isDownloading}
-                                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${
-                                    isDownloading ? "text-gray-400 cursor-not-allowed"
-                                    : hasError ? "text-red-500 hover:underline"
-                                    : "text-[#1a2744] hover:underline"
-                                  }`}
+                                  className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${isDownloading ? "text-gray-400 cursor-not-allowed"
+                                      : hasError ? "text-red-500 hover:underline"
+                                        : "text-[#1a2744] hover:underline"
+                                    }`}
                                 >
                                   {isDownloading ? (
                                     <>
-                                      <svg className="w-3 h-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                      <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
                                       </svg>
@@ -1619,10 +1263,10 @@ const handleSaveResponses = async () => {
                                   ) : hasError ? "Retry" : "Download"}
                                 </button>
                               </div>
-                            );
-                          })()}
-                        </div>
-                      ))}
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1631,7 +1275,6 @@ const handleSaveResponses = async () => {
           )}
         </div>
       )}
-
       {/* ── Checklist Tab ── */}
       {activeTab === "Checklist" && (() => {
         if (selectedChecklistId) {
@@ -1644,11 +1287,8 @@ const handleSaveResponses = async () => {
                   {checklistMeta && (<><span className="text-gray-300">·</span><span className="text-sm font-semibold text-gray-700">Phase {checklistMeta.phaseNumber} Checklist</span></>)}
                 </div>
               </div>
-
               {formLoading ? (
                 <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-400">Loading checklist…</div>
-              ) : file.checklistType === "manpower" && checklistMeta ? (
-                <ManpowerChecklistForm checklistNo={selectedChecklistId} checkerName={checklistMeta.checkerName} date={checklistMeta.checkDate} onCheckerNameChange={(v) => handleUpdateChecklistMeta("checkerName", v)} onDateChange={(v) => handleUpdateChecklistMeta("checkDate", v)} onSave={!isFinalized ? handleSaveResponses : undefined} />
               ) : checklistForm ? (
                 <DynamicChecklistForm form={checklistForm} responses={responses} setResponses={setResponses} onSave={!isFinalized ? handleSaveResponses : undefined} saving={savingResponses} disabled={isFinalized} />
               ) : (
@@ -1678,7 +1318,35 @@ const handleSaveResponses = async () => {
               <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
                 <p className="text-sm font-medium text-gray-500">No checklists yet</p>
                 <p className="text-xs text-gray-400 mt-1 mb-4">Create the first checklist for this file</p>
-                {!isFinalized && <button onClick={handleNewChecklist} className="bg-[#1a2744] text-white text-sm font-medium px-5 py-2 rounded-lg hover:bg-[#243358] transition-colors">+ New Checklist</button>}
+                {/* Header bar button */}
+                {!isFinalized && (
+                  <button
+                    onClick={handleNewChecklist}
+                    disabled={creatingChecklist}
+                    className="bg-[#1a2744] text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-[#243358] transition-colors flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {creatingChecklist ? (
+                      <>
+                        <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
+                        </svg>
+                        Creating…
+                      </>
+                    ) : "+ New Checklist"}
+                  </button>
+                )}
+
+                {/* Empty state button */}
+                {!isFinalized && (
+                  <button
+                    onClick={handleNewChecklist}
+                    disabled={creatingChecklist}
+                    className="bg-[#1a2744] text-white text-sm font-medium px-5 py-2 rounded-lg hover:bg-[#243358] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {creatingChecklist ? "Creating…" : "+ New Checklist"}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="flex flex-col gap-3">
@@ -1766,20 +1434,20 @@ ${CHECKLIST_STATUS_STYLES[cl.status] || CHECKLIST_STATUS_STYLES.Draft}`}>
         <div className="overflow-y-auto max-h-[calc(100vh-280px)] flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold text-gray-700">{queriesSummary?.total ?? fileQueries.length} {(queriesSummary?.total ?? fileQueries.length)===1?"query":"queries"} on this file</h3>
-              {(queriesSummary?.statusCounts?.Open || 0)>0&&<span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 text-blue-600">{queriesSummary.statusCounts.Open} Open</span>}
+              <h3 className="text-sm font-semibold text-gray-700">{queriesSummary?.total ?? fileQueries.length} {(queriesSummary?.total ?? fileQueries.length) === 1 ? "query" : "queries"} on this file</h3>
+              {(queriesSummary?.statusCounts?.Open || 0) > 0 && <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 text-blue-600">{queriesSummary.statusCounts.Open} Open</span>}
             </div>
             <button onClick={() => setShowQueryForm(true)} className="flex items-center gap-2 bg-[#1a2744] hover:bg-[#243460] text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors"><span className="text-lg leading-none">+</span>Raise Query</button>
           </div>
 
-          {queriesLoading?(
+          {queriesLoading ? (
             <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-400">Loading queries…</div>
-          ):queriesError?(
+          ) : queriesError ? (
             <div className="bg-white rounded-xl border border-gray-200 py-14 flex flex-col items-center gap-3">
               <p className="text-sm text-red-500">{queriesError}</p>
               <button onClick={fetchQueries} className="text-sm font-medium text-[#1a2744] border border-[#1a2744]/25 px-4 py-2 rounded-lg hover:bg-[#1a2744] hover:text-white transition-colors">Retry</button>
             </div>
-          ):fileQueries.length===0?(
+          ) : fileQueries.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 py-14 flex flex-col items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
@@ -1794,12 +1462,12 @@ ${CHECKLIST_STATUS_STYLES[cl.status] || CHECKLIST_STATUS_STYLES.Draft}`}>
                   {fileQueries.map(q => {
                     const age = getAgeing(q.createdAt);
                     return (
-                      <tr key={q.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer" onClick={()=>setSelectedQuery(q)}>
+                      <tr key={q.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setSelectedQuery(q)}>
                         <td className="px-5 py-3.5 max-w-xs"><p className="text-sm font-medium text-gray-800 leading-snug">{q.title}</p><p className="text-xs font-mono text-gray-400 mt-0.5">{q.queryNumber}</p></td>
-                        <td className="px-5 py-3.5 whitespace-nowrap"><p className="text-sm text-gray-700">{q.assignedTo?.name||"—"}</p></td>
-                        <td className="px-5 py-3.5"><span className={`text-xs font-medium px-2.5 py-1 rounded-full ${PRIORITY_STYLES[q.priority]||""}`}>{q.priority}</span></td>
-                        <td className="px-5 py-3.5"><span className={`text-xs font-medium px-2.5 py-1 rounded-full ${QUERY_STATUS_STYLES[q.status]||""}`}>{q.status}</span></td>
-                        <td className="px-5 py-3.5 whitespace-nowrap">{age!==null&&<span className={`text-xs font-medium px-2 py-0.5 rounded-full ${age>7?"bg-orange-50 text-orange-400":"bg-gray-100 text-gray-400"}`}>{age}d</span>}</td>
+                        <td className="px-5 py-3.5 whitespace-nowrap"><p className="text-sm text-gray-700">{q.assignedTo?.name || "—"}</p></td>
+                        <td className="px-5 py-3.5"><span className={`text-xs font-medium px-2.5 py-1 rounded-full ${PRIORITY_STYLES[q.priority] || ""}`}>{q.priority}</span></td>
+                        <td className="px-5 py-3.5"><span className={`text-xs font-medium px-2.5 py-1 rounded-full ${QUERY_STATUS_STYLES[q.status] || ""}`}>{q.status}</span></td>
+                        <td className="px-5 py-3.5 whitespace-nowrap">{age !== null && <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${age > 7 ? "bg-orange-50 text-orange-400" : "bg-gray-100 text-gray-400"}`}>{age}d</span>}</td>
                         <td className="px-5 py-3.5 text-xs text-gray-400 whitespace-nowrap">{formatDateDisplay(q.dueDate)}</td>
                       </tr>
                     );
@@ -1809,8 +1477,8 @@ ${CHECKLIST_STATUS_STYLES[cl.status] || CHECKLIST_STATUS_STYLES.Draft}`}>
             </div>
           )}
 
-          {showQueryForm&&<QueryCreationPanel fileId={fileId} fileNumber={file.fileNumber} fileTitle={file.fileTitle} onClose={()=>setShowQueryForm(false)} onCreated={(nq)=>{setFileQueries(prev=>[nq,...prev]);setShowQueryForm(false);fetchQueries();}}/>}
-          {selectedQuery&&<QueryDetailPanel query={selectedQuery} onClose={()=>setSelectedQuery(null)}/>}
+          {showQueryForm && <QueryCreationPanel fileId={fileId} fileNumber={file.fileNumber} fileTitle={file.fileTitle} onClose={() => setShowQueryForm(false)} onCreated={(nq) => { setFileQueries(prev => [nq, ...prev]); setShowQueryForm(false); fetchQueries(); }} />}
+          {selectedQuery && <QueryDetailPanel query={selectedQuery} onClose={() => setSelectedQuery(null)} />}
         </div>
       )}
 
