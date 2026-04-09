@@ -5,6 +5,7 @@ import { getUlbs } from "../services/masterDataService";
 import { CONTRACT_TYPES } from "../assets/data";
 import { ULB_OFFICERS } from "../assets/data";
 import { MANDATORY_SLOTS } from "../assets/data";
+import toast from "react-hot-toast";
 
 
 
@@ -163,7 +164,7 @@ const NewFilePage = ({ onBack, onSubmit }) => {
 
   const submitMetaData = async () => {
     if (!form.fileNumber || !form.contractType || !form.ulb || !form.fileTitle) {
-      alert("Please fill required fields");
+      toast.error("Please fill all required fields");
       return;
     }
 
@@ -190,7 +191,7 @@ const NewFilePage = ({ onBack, onSubmit }) => {
       setMetaSubmitted(true);
     } catch (err) {
       console.error(err);
-      alert("Failed to create file");
+      toast.error("Failed to create file: " + (err?.response?.data?.message || err.message));
     } finally {
       setSaving(false);
     }
@@ -236,7 +237,7 @@ const NewFilePage = ({ onBack, onSubmit }) => {
   };
   const uploadAllAttachments = async () => {
     if (!fileId || !checklistId) {
-      alert("Submit metadata first");
+      toast.error("Please submit metadata first");
       return;
     }
 
@@ -259,7 +260,7 @@ const NewFilePage = ({ onBack, onSubmit }) => {
     );
 
     if (attachments.length === 0) {
-      alert("Please add at least one attachment");
+      toast.error("Please add at least one attachment");
       return;
     }
 
@@ -270,7 +271,7 @@ const NewFilePage = ({ onBack, onSubmit }) => {
       if (!res.success) {
         throw new Error(res.message);
       }
-      alert("Attachments uploaded successfully");
+      toast.success("Attachments uploaded successfully");
       onSubmit?.({
         ...form,
         id: fileId,
@@ -281,7 +282,7 @@ const NewFilePage = ({ onBack, onSubmit }) => {
       console.error("Upload error:", err);
       console.error("Response:", err?.response?.data);
       console.error("Status:", err?.response?.status);
-      alert("Upload failed: " + (err?.response?.data?.message || err.message));
+      toast.error("Upload failed: " + (err?.response?.data?.message || err.message));
     } finally {
       setUploading(false);
     }

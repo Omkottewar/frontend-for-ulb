@@ -21,6 +21,7 @@ import {
 import { getFileDetail, updateFile as updateFileApi, getFileVersions } from "../services/filesService";
 import { createQuery, getQueriesByFile } from "../services/queriesService";
 import { downloadFile } from "../utils/storage";
+import toast from "react-hot-toast";
 // ── Constants (UI-only) ────────────────────────────────────────────
 const RISK_STYLES = {
   High: "bg-red-100 text-red-600",
@@ -243,7 +244,7 @@ export const ChecklistAttachmentsSection = ({ fileId, checklistId, disabled }) =
       await fetchAttachments();
     } catch (err) {
       console.error("Upload error:", err);
-      alert("Upload failed: " + (err?.response?.data?.message || err.message));
+      toast.error("Upload failed: " + (err?.response?.data?.message || err.message));
     } finally {
       setUploading(false);
     }
@@ -615,7 +616,7 @@ const [previewLoading, setPreviewLoading] = useState(false);
 
   const handleNewChecklist = async () => {
     try {
-      if (!fileId) { alert("File ID missing"); return; }
+      if (!fileId) { toast.error("File ID missing"); return; }
 
       setCreatingChecklist(true); // ✅
 
@@ -623,7 +624,7 @@ const [previewLoading, setPreviewLoading] = useState(false);
       const contract = CONTRACT_TYPES.find(c => c.id === file?.contractTypeId);
 
       if (!contract) {
-        alert("Template not configured for this contract type");
+        toast.error("Template not configured for this contract type");
         return;
       }
 
@@ -643,7 +644,7 @@ const [previewLoading, setPreviewLoading] = useState(false);
 
     } catch (err) {
       console.error("CREATE CHECKLIST ERROR:", err);
-      alert(err?.response?.data?.message || err.message || "Failed to create checklist");
+      toast.error(err?.response?.data?.message || err.message || "Failed to create checklist");
     } finally {
       setCreatingChecklist(false); // ✅
     }
@@ -730,16 +731,16 @@ const [previewLoading, setPreviewLoading] = useState(false);
         : 0;
 
       if (flagCount > 0) {
-        alert(
+        toast.success(
           `Checklist saved.\n\n🚩 ${flagCount} red flag${flagCount !== 1 ? "s" : ""} detected — queries have been auto-raised in the Queries tab.`
         );
       } else {
-        alert("Checklist saved successfully.");
+        toast.success("Checklist saved successfully.");
       }
 
     } catch (err) {
       console.error("Failed to save responses:", err);
-      alert("Failed to save responses: " + (err?.response?.data?.message || err.message));
+      toast.error("Failed to save responses: " + (err?.response?.data?.message || err.message));
     } finally {
       setSavingResponses(false);
     }
@@ -753,11 +754,11 @@ const [previewLoading, setPreviewLoading] = useState(false);
 
       await fetchChecklists();
 
-      alert("Checklist completed");
+      toast.success("Checklist completed");
 
     } catch (err) {
       console.error(err);
-      alert("Failed to complete checklist");
+      toast.error("Failed to complete checklist");
     }
   };
   const handleUpdateChecklistMeta = async (field, value) => {

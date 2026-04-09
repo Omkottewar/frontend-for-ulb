@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createSupplier } from "../services/supplierService";
 import { updateFileSupplier } from "../services/fileService";
+import toast from "react-hot-toast";
 const inputClass =
   "w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#1a2744] focus:border-transparent transition placeholder-gray-400";
 
@@ -48,7 +49,7 @@ const handleSubmit = async () => {
 
   } catch (err) {
     console.error(err);
-    alert("Failed to save supplier");
+    toast.error("Failed to save supplier");
   }
 };
 

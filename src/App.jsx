@@ -3,9 +3,20 @@ import LoginPage from "./pages/LogInPage";
 import SignUpPage from "./pages/SignUpPage";
 import MainLayout from "./layouts/MainLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { Toaster } from "react-hot-toast";
 
 function App() {
   return (
+   <>
+  <Toaster
+  position="top-right"
+  toastOptions={{
+    style: {
+      background: "#1a2744",
+      color: "#fff",
+    },
+  }}
+/>
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -21,6 +32,7 @@ function App() {
         />
       </Routes>
     </BrowserRouter>
+   </>
   );
 }
 

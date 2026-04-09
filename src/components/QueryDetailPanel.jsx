@@ -10,6 +10,7 @@ import {
   addQueryParticipant,
   downloadQueryAttachment,
 } from "../services/queriesService";
+import toast from "react-hot-toast";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -398,7 +399,7 @@ export default function QueryDetailPanel({ query, onClose }) {
       setReplyRawFiles([]);
     } catch (err) {
       console.error("Failed to send reply:", err);
-      alert("Failed to send reply. Please try again.");
+      toast.error("Failed to send reply. Please try again.");
     } finally {
       setSendingReply(false);
     }
@@ -463,7 +464,7 @@ export default function QueryDetailPanel({ query, onClose }) {
       setShowParticipantModal(false);
     } catch (err) {
       console.error("Failed to add participant:", err);
-      alert("Failed to add participant. Please try again.");
+      toast.error("Failed to add participant. Please try again.");
     } finally {
       setAddingParticipant(false);
     }

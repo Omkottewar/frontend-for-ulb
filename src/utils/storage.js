@@ -1,3 +1,5 @@
+import toast from "react-hot-toast";
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const BUCKET = import.meta.env.VITE_SUPABASE_BUCKET;
 
@@ -34,6 +36,6 @@ export const downloadFile = async (storagePath, fileName) => {
     URL.revokeObjectURL(blobUrl);
   } catch (err) {
     console.error("Download error:", err);
-    alert("Failed to download file.");
+    toast.error("Failed to download file: " + err.message);
   }
 };
