@@ -9,7 +9,6 @@ import { canAccessFile } from "../utils/accessControl";
 import ManpowerChecklistForm from "../components/ManpowerChecklistForm";
 import DynamicChecklistForm from "../components/DynamicChecklistForm";
 import { CONTRACT_TYPES, TRANSLATIONS, VALUE_MAP, STATUS_STYLES } from "../assets/data";
-import { downloadFile, getFileUrl } from "../utils/storage";
 import {
   getChecklistsByFile,
   createChecklistForFile,
@@ -21,6 +20,7 @@ import {
 } from "../services/checklistService";
 import { getFileDetail, updateFile as updateFileApi, getFileVersions } from "../services/filesService";
 import { createQuery, getQueriesByFile } from "../services/queriesService";
+import { downloadFile } from "../utils/storage";
 // ── Constants (UI-only) ────────────────────────────────────────────
 const RISK_STYLES = {
   High: "bg-red-100 text-red-600",
@@ -33,6 +33,7 @@ const CHECKLIST_STATUS_STYLES = {
   Completed: "bg-green-100 text-green-600"
 };
 
+
 const TABS = [
   "Details",
   "Documents",
@@ -41,11 +42,7 @@ const TABS = [
   "Statutory Compliance",
   "Queries",
 ];
-const [creatingChecklist, setCreatingChecklist] = useState(false);
-const [savingMasterData, setSavingMasterData] = useState(false);
-const [previewUrl, setPreviewUrl] = useState(null);
-const [previewFileName, setPreviewFileName] = useState("");
-const [previewLoading, setPreviewLoading] = useState(false);
+
 const PRIORITY_STYLES = {
   High: "bg-red-100 text-red-500",
   Medium: "bg-orange-100 text-orange-500",
@@ -344,7 +341,12 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
   const [allAttachments, setAllAttachments] = useState([]);
   const [docsLoading, setDocsLoading] = useState(false);
   const [downloadStates, setDownloadStates] = useState({});
-
+// ❌ These are at module level, before FileDetailPage
+const [creatingChecklist, setCreatingChecklist] = useState(false);
+const [savingMasterData, setSavingMasterData] = useState(false);
+const [previewUrl, setPreviewUrl] = useState(null);
+const [previewFileName, setPreviewFileName] = useState("");
+const [previewLoading, setPreviewLoading] = useState(false);
   // Queries (local)
   // Queries (API-driven)
   const [fileQueries, setFileQueries] = useState([]);
@@ -874,23 +876,6 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
       setDownloadStates((prev) => ({ ...prev, [key]: "error" }));
     }
   };
-  const handlePreview = async (att) => {
-    try {
-      setPreviewLoading(att.id ?? att.storagePath);
-      const url = await getFileUrl(att.storagePath);
-      if (url) {
-        setPreviewFileName(att.fileName);
-        setPreviewUrl(url);
-      } else {
-        alert("Could not load preview. Try downloading instead.");
-      }
-    } catch (err) {
-      console.error("Preview failed:", err);
-      alert("Preview failed.");
-    } finally {
-      setPreviewLoading(null);
-    }
-  };
 
   if (!canAccessFile(file)) {
     return (
@@ -1164,6 +1149,7 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
           )}
         </div>
       )}
+
       {/* ── Documents Tab ── */}
       {activeTab === "Documents" && (
         <div className="overflow-y-auto max-h-[calc(100vh-280px)] space-y-4">
@@ -1177,6 +1163,8 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
           ) : (
             checklistList.filter(cl => allAttachments.some(a => a._checklistId === cl.id)).map(cl => {
               const atts = allAttachments.filter(a => a._checklistId === cl.id);
+              // const pageAtts=atts.filter(a=>a.category==="page");
+              // const docAtts=atts.filter(a=>a.category==="document"||!a.category);
               return (
                 <div key={cl.id} className="space-y-3">
                   <div className="flex items-center gap-2">
@@ -1185,27 +1173,24 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
                   </div>
                   {atts.length > 0 && (
                     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-5 pt-4 pb-2">Attachments</p>
-                      {atts.map((att, i) => {
-                        const dlKey = att.id ?? att.storagePath;
-                        const dlState = downloadStates[dlKey];
-                        const isDownloading = dlState === "downloading";
-                        const hasError = dlState === "error";
-                        const isPreviewing = previewLoading === dlKey;
-                        const isImage = att.mimeType?.startsWith("image/") ||
-                          /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(att.fileName || "");
-
-                        return (
-                          <div key={att.id || i} className="flex items-center justify-between px-5 py-3 border-t border-gray-50">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <span className="text-xs font-semibold text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded shrink-0">
-                                {att.slot || att.fileName?.split(".").pop() || "file"}
-                              </span>
-                              <span className="text-sm text-gray-700 truncate">{att.fileName}</span>
-                              <span className="text-xs text-gray-400 shrink-0">{formatSize(att.fileSize)}</span>
-                            </div>
-
-                            {att.storagePath && (
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-5 pt-4 pb-2">
+                        Attachments
+                      </p>
+                      {atts.map((att, i) => (
+                        <div key={att.id || i} className="flex items-center justify-between px-5 py-3 border-t border-gray-50">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="text-xs font-semibold text-gray-400 uppercase bg-gray-100 px-2 py-0.5 rounded shrink-0">
+                              {att.slot || att.fileName?.split(".").pop() || "file"}
+                            </span>
+                            <span className="text-sm text-gray-700 truncate">{att.fileName}</span>
+                            <span className="text-xs text-gray-400 shrink-0">{formatSize(att.fileSize)}</span>
+                          </div>
+                          {att.storagePath && (() => {
+                            const dlKey = att.id ?? att.storagePath;
+                            const dlState = downloadStates[dlKey];
+                            const isDownloading = dlState === "downloading";
+                            const hasError = dlState === "error";
+                            return (
                               <div className="flex items-center gap-2 shrink-0 ml-4">
                                 {hasError && (
                                   <span className="flex items-center gap-1 text-xs font-medium text-red-500 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full">
@@ -1215,46 +1200,17 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
                                     Failed
                                   </span>
                                 )}
-
-                                {/* View — images only */}
-                                {isImage && (
-                                  <button
-                                    onClick={() => handlePreview(att)}
-                                    disabled={isPreviewing}
-                                    className="flex items-center gap-1.5 text-xs font-medium text-[#1a2744] hover:underline transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                  >
-                                    {isPreviewing ? (
-                                      <>
-                                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
-                                        </svg>
-                                        Loading…
-                                      </>
-                                    ) : (
-                                      <>
-                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                        </svg>
-                                        View
-                                      </>
-                                    )}
-                                  </button>
-                                )}
-
-                                {/* Download — all files */}
                                 <button
                                   onClick={() => handleDownload(att)}
                                   disabled={isDownloading}
                                   className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${isDownloading ? "text-gray-400 cursor-not-allowed"
-                                      : hasError ? "text-red-500 hover:underline"
-                                        : "text-[#1a2744] hover:underline"
+                                    : hasError ? "text-red-500 hover:underline"
+                                      : "text-[#1a2744] hover:underline"
                                     }`}
                                 >
                                   {isDownloading ? (
                                     <>
-                                      <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                                      <svg className="w-3 h-3 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
                                       </svg>
@@ -1263,10 +1219,10 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
                                   ) : hasError ? "Retry" : "Download"}
                                 </button>
                               </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                            );
+                          })()}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -1275,6 +1231,7 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
           )}
         </div>
       )}
+
       {/* ── Checklist Tab ── */}
       {activeTab === "Checklist" && (() => {
         if (selectedChecklistId) {
