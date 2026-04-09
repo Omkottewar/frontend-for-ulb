@@ -66,24 +66,23 @@ const SignUpPage = () => {
           <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
           <select name="role" value={form.role} onChange={handleChange} className={inputClass}>
             <option value="" disabled>Select your role</option>
-
-            <option value="11111111-1111-1111-1111-000000000002">
+            <option value="ad816d78-14a2-4d0b-8f7f-852710dfd42f">
               State Controller
             </option>
 
-            <option value="11111111-1111-1111-1111-000000000003">
+            <option value="cb368dc5-fd55-4721-a384-ecab0fe7e0f8">
               Team Lead
             </option>
 
-            <option value="11111111-1111-1111-1111-000000000004">
+            <option value="47fe8be5-96dc-4c25-b477-bdaaab0e7061">
               Chartered Accountant
             </option>
 
-            <option value="11111111-1111-1111-1111-000000000006">
+            <option value="4a7b7e0d-11af-4209-a43a-49c8203a929e">
               ULB Executive
             </option>
 
-            <option value="11111111-1111-1111-1111-000000000005">
+            <option value="a1575610-b4e5-4327-bf40-37af289cfafe">
               Non ULB Executive
             </option>
 

@@ -227,14 +227,14 @@ const buildResponsesMap = (form) => {
   if (!form?.sections) return resMap;
 
   for (const section of form.sections) {
-    // Regular fields
+    // ── Regular fields ──────────────────────────────────────
     if (section.fields) {
       for (const field of section.fields) {
         resMap[field.fieldId] = { value: field.value ?? null, remark: field.remark ?? "" };
       }
     }
 
-    // Conditional group fields
+    // ── Conditional group fields ─────────────────────────────
     if (section.conditionalGroups) {
       for (const cg of section.conditionalGroups) {
         for (const field of cg.fields || []) {
@@ -243,34 +243,54 @@ const buildResponsesMap = (form) => {
       }
     }
 
-    // Checklist table items
+    // ── Checklist table items ────────────────────────────────
     if (section.type === "checklist_table" && section.items) {
       for (const item of section.items) {
         if (item.responseField?.fieldId) {
-          resMap[item.responseField.fieldId] = { value: item.responseField.value ?? null, remark: "" };
+          resMap[item.responseField.fieldId] = {
+            value: item.responseField.value ?? null,
+            remark: "",
+          };
         }
         if (item.remarkField?.fieldId) {
-          resMap[item.remarkField.fieldId] = { value: item.remarkField.value ?? null, remark: "" };
+          resMap[item.remarkField.fieldId] = {
+            value: item.remarkField.value ?? null,
+            remark: "",
+          };
         }
       }
     }
 
-    // Line items table
+    // ── Document checklist ───────────────────────────────────
+    // FIX: was missing entirely — these fields were never initialised
+    if (section.type === "document_checklist" && section.items) {
+      for (const item of section.items) {
+        if (item.checkField?.fieldId) {
+          resMap[item.checkField.fieldId] = {
+            value: item.checkField.value ?? null,
+            remark: "",
+          };
+        }
+      }
+    }
+
+    // ── Line items table ─────────────────────────────────────
+    // FIX: was using `rowId__columnId` — backend uses `rowId_amount` / `rowId_remark`
+    // Now we use `rowId_columnId` (single underscore) to stay consistent,
+    // AND we update the backend to match this same convention (see Fix 3).
     if (section.type === "line_items_table" && section.rows && section.columns) {
       for (const row of section.rows) {
         for (const col of section.columns) {
           if (col.type === "readonly") continue;
-          const key = `${row.rowId}__${col.columnId}`;
+          const key = `${row.rowId}_${col.columnId}`; // ✅ single underscore
           resMap[key] = { value: null, remark: "" };
         }
       }
     }
 
-    // Dynamic table
-    if (section.type === "table") {
-      const key = `__table_${section.sectionId}`;
-      resMap[key] = { value: null, remark: "" };
-    }
+    // ── Dynamic table ────────────────────────────────────────
+    // These are handled separately (per-row inserts), so we intentionally
+    // skip them here — no phantom keys that silently get dropped on save.
   }
 
   return resMap;
@@ -1172,40 +1192,40 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
     }
   };
 
-  const handleSaveResponses = async () => {
-    if (!selectedChecklistId) return;
+const handleSaveResponses = async () => {
+  if (!selectedChecklistId) return;
 
-    try {
-      setSavingResponses(true);
+  try {
+    setSavingResponses(true);
 
-      const payload = Object.entries(responses)
-        .filter(([, r]) => r.value !== null && r.value !== "")
-        .map(([questionId, r]) => ({
-          questionId,
-          responseValue: String(r.value),
-          remark: r.remark || ""
-        }));
+    const payload = Object.entries(responses)
+      // FIX: was filtering out null/empty — this prevented clearing saved values.
+      // Now we submit ALL fields so the backend can upsert (including nulls to clear).
+      // Skip only the dynamic table placeholder keys (they have their own flow).
+      .filter(([questionId]) => !questionId.startsWith("__table_"))
+      .map(([questionId, r]) => ({
+        questionId,
+        responseValue: r.value !== null && r.value !== undefined ? String(r.value) : null,
+        remark: r.remark || "",
+      }));
 
-      // 1️⃣ Save responses
-      await saveChecklistResponses(selectedChecklistId, payload);
+    // FIX: log what's being submitted so dropped keys are visible
+    console.log(`📤 Submitting ${payload.length} responses for checklist ${selectedChecklistId}`);
 
-      // 2️⃣ Update checklist status
-      await apiUpdateChecklist(selectedChecklistId, {
-        status: "In Progress"
-      });
+    await saveChecklistResponses(selectedChecklistId, payload);
 
-      alert("Checklist saved successfully");
+    await apiUpdateChecklist(selectedChecklistId, { status: "In Progress" });
 
-      // 3️⃣ Refresh checklist list
-      await fetchChecklists();
+    alert("Checklist saved successfully");
+    await fetchChecklists();
 
-    } catch (err) {
-      console.error(err);
-      alert("Failed to save responses");
-    } finally {
-      setSavingResponses(false);
-    }
-  };
+  } catch (err) {
+    console.error("Failed to save responses:", err);
+    alert("Failed to save responses");
+  } finally {
+    setSavingResponses(false);
+  }
+};
   const handleCompleteChecklist = async () => {
     try {
 
@@ -1624,19 +1644,6 @@ const FileDetailPage = ({ file: initialFile, onBack, onFileUpdated, onFileFinali
                   {checklistMeta && (<><span className="text-gray-300">·</span><span className="text-sm font-semibold text-gray-700">Phase {checklistMeta.phaseNumber} Checklist</span></>)}
                 </div>
               </div>
-
-              {checklistMeta && (
-                <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 mb-4 grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Checker Name</label>
-                    <input type="text" value={checklistMeta.checkerName || ""} disabled={isFinalized} onChange={(e) => handleUpdateChecklistMeta("checkerName", e.target.value)} className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Check Date</label>
-                    <input type="date" value={checklistMeta.checkDate || ""} disabled={isFinalized} onChange={(e) => handleUpdateChecklistMeta("checkDate", e.target.value)} className={inputClass} />
-                  </div>
-                </div>
-              )}
 
               {formLoading ? (
                 <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-sm text-gray-400">Loading checklist…</div>

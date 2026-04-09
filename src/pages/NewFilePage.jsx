@@ -4,10 +4,10 @@ import { uploadAttachments } from "../services/attachmentsService";
 import { getUlbs } from "../services/masterDataService";
 
 const CONTRACT_TYPES = [
-  { name: "Civil", id: "33333333-3333-3333-3333-000000000001" ,template_id: "99999999-9999-9999-9999-000000000002c"},
-  { name: "Manpower Service", id: "33333333-3333-3333-3333-000000000002" ,template_id: "aff9289f-1fec-4a0d-903f-3ce0040485db"},
-  { name: "Procurement", id: "33333333-3333-3333-3333-000000000003" ,template_id: "1de0e9d3-eb6b-4802-99f3-6dfff3dcfeb9"},
-  { name: "Service", id: "33333333-3333-3333-3333-000000000004" ,template_id: "99999999-9999-9999-9999-000000000002"},
+  { name: "Adv_to_Emp", id: "607e248c-27e5-4ba6-8b96-8a8f364befbd" ,template_id: "d7801530-b05b-44dd-bd06-165d8c6056b3"},
+  { name: "Manpower Service", id: "fff383fb-3e2a-4fbf-96f1-9b49cbd397a0" ,template_id: "443de5e8-cfc3-4f11-98df-446f84c1d737"},
+  { name: "Procurement", id: "db284496-bf82-4e0d-88df-3808bfe13b7d" ,template_id: "f6df8dcc-2d1d-432e-9892-0485dd844a89"},
+  { name: "Service", id: "f15abb46-6e71-4956-bd86-d071cde7ca1b" ,template_id: "2b165788-0ae1-4f37-89de-8ac5edf11f12"},
 ];
 
 const ULB_OFFICERS = [
@@ -190,6 +190,7 @@ const NewFilePage = ({ onBack, onSubmit }) => {
         contractTypeId: form.contractType,
         ulbId: form.ulb,
         officerName: "55555555-5555-5555-5555-555555555555",
+        templateId: CONTRACT_TYPES.find((c) => c.id === form.contractType)?.template_id,
         fileTitle: form.fileTitle,
         workDescription: form.workDescription,
         amount: form.amount,

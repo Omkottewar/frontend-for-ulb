@@ -39,23 +39,18 @@ export const getChecklistAttachments = async (checklistId) => {
 /* ─── Upload checklist attachments ─── */
 export const uploadChecklistAttachments = async (fileId, checklistId, files) => {
   const formData = new FormData();
- 
-  // Must match backend: req.files?.documents
-  files.forEach((file) => {
-    formData.append("documents", file);
+
+  files.forEach(({ field, file }) => {
+    formData.append(field, file); // ✅ use the correct field name
   });
- 
+
   const res = await api.post(
     `/files/${fileId}/checklists/${checklistId}/attachments`,
     formData,
     {
-      headers: {
-        // Let axios/browser set Content-Type + boundary automatically
-        // DO NOT set "multipart/form-data" manually — it strips the boundary
-        "Content-Type": undefined,
-      },
+      headers: { "Content-Type": undefined },
     }
   );
- 
+
   return res.data;
 };
